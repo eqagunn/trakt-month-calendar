@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Trakt Month Calendar",
+  "version": "1.0.0",
+  "description": "Automatically displays Trakt's calendar as a monthly grid, using the page's existing weekly controls and scrolling.",
+  "icons": {
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.trakt.tv/*",
+        "https://trakt.tv/*",
+        "https://www.trakt.tv/*"
+      ],
+      "js": [
+        "calendar-jump.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://app.trakt.tv/*",
+        "https://trakt.tv/*",
+        "https://www.trakt.tv/*"
+      ],
+      "js": [
+        "calendar-core.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

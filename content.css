@@ -1,0 +1,70 @@
+/* Keep Trakt's real calendar geometry intact while its loader is active. */
+.tmc-native-source {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+/* The loading preview must not change Trakt's document scroll measurements. */
+#trakt-month-calendar.tmc-month-scroll {
+  position: fixed;
+  z-index: 90;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+/* Native scroll loading can bring the site footer into the viewport. Keep its
+   space intact so hiding it cannot change Trakt's scroll/size calculations. */
+html.tmc-calendar-loading .trakt-footer {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+/* Park the native source after loading; keep the month’s scroll viewport. */
+.tmc-native-source.tmc-native-parked { display: none !important; }
+/* The month viewport already includes the site’s sidebar and side offsets. */
+#trakt-month-calendar > .trakt-footer[slot="site-footer"] { margin-inline: 0 !important; padding-inline: 0 !important; width: 100%; box-sizing: border-box; }
+
+/* Keep native programmatic scrolling available without a second scrollbar. */
+html.tmc-month-active, html.tmc-month-active body { scrollbar-width: none !important; }
+html.tmc-month-active::-webkit-scrollbar, html.tmc-month-active body::-webkit-scrollbar { display: none !important; }
+#trakt-month-calendar.tmc-month-scroll { overflow-x: hidden; }
+
+/* Keep the original day selector stable when Trakt toggles is-scrolled. */
+.tmc-original-calendar .calendar-navigation {
+  position: fixed !important;
+  left: var(--tmc-original-nav-left) !important;
+  width: var(--tmc-original-nav-width) !important;
+  box-sizing: border-box;
+  top: var(--tmc-original-nav-top,0px) !important;
+  gap: var(--tmc-original-nav-gap,var(--gap-s,8px)) !important;
+  transition: none !important;
+}
+.tmc-original-calendar .calendar-navigation .trakt-calendar-header {
+  height: var(--ni-40,40px) !important;
+  transition: none !important;
+}
+
+#trakt-month-calendar.tmc-month-scroll { overflow-anchor: none; }
+
+/* Native cards remain in light DOM so Trakt's scoped styles, image actions and
+   event handlers survive. Named slots place the actual nodes in month cells. */
+#trakt-month-calendar > .tmc-native-card {
+  display:block;position:relative;min-width:0;padding:0;margin:0;background:transparent;
+  min-height:0;--width-card:100%;--width-override-card:100%;--height-override-card:calc(var(--tmc-native-cover-height,100px) + var(--height-card-footer,40px));
+  --height-override-card-cover:var(--tmc-native-cover-height,100px);
+}
+#trakt-month-calendar > .tmc-native-card trakt-calendar-item {display:block;padding:0;width:100%}
+#trakt-month-calendar > .tmc-native-card .trakt-card {display:block;min-width:0;min-height:0;width:100%}
+#trakt-month-calendar > .tmc-native-card .trakt-card-content {width:100%;height:auto;min-height:var(--tmc-native-card-height,176px)}
+#trakt-month-calendar > .tmc-native-card .trakt-card-footer {height:var(--height-card-footer,40px);box-sizing:border-box}
+#trakt-month-calendar > .tmc-native-card .trakt-card-title,
+#trakt-month-calendar > .tmc-native-card .trakt-card-subtitle,
+#trakt-month-calendar > .tmc-native-card .tmc-native-details {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+#trakt-month-calendar > .tmc-native-card .trakt-card-subtitle:has(+ .tmc-native-details) {display:none}
+#trakt-month-calendar > .tmc-native-card .tmc-native-details {display:block;font-size:var(--font-size-text-small,12px);line-height:1.4;color:var(--color-text-secondary,#aeb4c2)}
+#trakt-month-calendar > .tmc-native-card a {text-decoration:none}
+#trakt-month-calendar > .tmc-native-card a:has(> .trakt-card-title) {display:block;width:max-content;max-width:100%}
+#trakt-month-calendar > .tmc-native-card .tmc-native-details a {color:inherit}
+#trakt-month-calendar > .tmc-native-card .tmc-native-details a:hover,
+#trakt-month-calendar > .tmc-native-card a:hover .trakt-card-title {color:var(--color-link-active,var(--purple-400,#b598ff))}
+#trakt-month-calendar > .tmc-native-card .trakt-tag {font-weight:700}
+#trakt-month-calendar > .tmc-native-card img.trakt-card-cover-image {max-width:100%;aspect-ratio:16/9;object-fit:cover}
