@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Trakt calendar test fixture</title>
+<style>body{margin:0;background:#0d0f14;color:#eee;font:15px system-ui}header{height:95px;padding:20px 40px;box-sizing:border-box;position:sticky;top:0;background:#171a20;z-index:100}.trakt-calendar-layout{margin:20px 40px 20px 280px}.calendar-navigation{height:140px}.trakt-calendar-controls button{padding:12px}.trakt-calendar-days{display:flex;gap:12px}.trakt-calendar-day-button span{display:block}.trakt-calendar-items{min-height:1100px}.calendar-day-anchor{padding:20px;background:#242832;margin-bottom:12px;min-height:120px}trakt-calendar-item{display:inline-block;padding:10px}.trakt-card-title{font:600 14px Arial,sans-serif}.trakt-card-subtitle{font:400 12px Arial,sans-serif}a{color:#eee}button{cursor:pointer}</style>
+<aside class="trakt-side-navbar" style="position:fixed;top:0;left:8px;width:240px;height:100vh;z-index:777;background:#171a20;display:flex;flex-direction:column;align-items:center;padding-top:25px;box-sizing:border-box;color:#b0b8c7"><div class="trakt-side-navbar-top"><strong style="color:#f16666;font-size:22px">trakt</strong></div><div class="trakt-side-navbar-content" style="width:100%;box-sizing:border-box;padding:8px 0;display:flex;flex-direction:column;gap:12px"><a href="/search" aria-label="Search" style="text-align:center;text-decoration:none">⌕ <span>Search</span></a><p>Home</p><p>Discover</p><p>Calendar</p></div></aside><header style="padding-left:280px">Calendar <button id="filter">Switch to movies</button> <button id="away">Leave Calendar</button></header>
+<main><div class="trakt-calendar-layout"><div class="calendar-navigation"><div class="trakt-calendar-controls"><button id="previous" aria-label="Previous calendar period">‹</button><button id="today">Today</button><button id="next" aria-label="Next calendar period">›</button></div><div class="trakt-calendar-days"></div></div><div id="periods"></div></div></main><footer class="trakt-footer" style="height:256px">Trakt footer test text</footer>
+<script>
+const add=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n,12);
+const dayKey=d=>`day-${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+let first = new Date(2026,9,5,12), count=0, loading=false, filter='show', stuck=false, epoch=0, shellDelay=0;
+window.fixture={get count(){return count},get filter(){return filter},get first(){return first.toISOString()},set stuck(v){stuck=v},scrollRequests:0,weekRequests:0,loadedWeeks:[]};
+window.fixture.attachPopup=trigger=>{
+ let active=null;
+ const close=()=>{
+  if(!active)return;
+  const {menu,clone,underlay,outside,keyboard}=active;active=null;
+  document.removeEventListener('click',outside);document.removeEventListener('keydown',keyboard);
+  menu.remove();clone.remove();underlay.remove();
+  trigger.setAttribute('aria-expanded','false');trigger.removeAttribute('data-popup-state');
+ };
+ trigger.setAttribute('aria-haspopup','true');trigger.setAttribute('aria-expanded','false');
+ trigger.onclick=()=>{
+  if(active){close();return}
+  trigger.setAttribute('aria-expanded','true');trigger.setAttribute('data-popup-state','opened');
+  const clone=trigger.cloneNode(true);clone.setAttribute('data-popup-clone','true');
+  const rect=trigger.getBoundingClientRect();clone.style.cssText='position:fixed;left:'+rect.left+'px;top:'+rect.top+'px;z-index:1001';
+  const underlay=document.createElement('div');underlay.id='trakt-portal-underlay';underlay.style.cssText='position:fixed;inset:0;z-index:999';
+  const menu=document.createElement('div');menu.className='trakt-popup-menu-container';menu.style.cssText='position:fixed;left:'+rect.left+'px;top:'+(rect.bottom+4)+'px;z-index:1000';
+  menu.innerHTML='<li role="button"><svg class="svelte-ow9ebb" viewBox="0 0 24 24"><path class="icon-path hidden" fill="currentColor" d="M1 1 L2 2 Z"/><path class="icon-path" stroke="currentColor" d="M2 2 L3 3 Z"/></svg></li>';
+  menu.querySelector('li').onclick=()=>{window.probeWatchClicks=(window.probeWatchClicks||0)+1;close()};
+  const outside=event=>{if(!trigger.contains(event.target))close()};
+  const keyboard=event=>{if(event.key==='Escape')close()};
+  active={menu,clone,underlay,outside,keyboard};document.body.append(underlay,menu,clone);
+  document.addEventListener('click',outside);document.addEventListener('keydown',keyboard);
+ };
+};
+function toolbar(){const container=document.querySelector('.trakt-calendar-days');if(!container)return;container.replaceChildren();for(let i=0;i<7;i++){const d=add(first,i),b=document.createElement('button');b.className='trakt-calendar-day-button';for(const text of [d.toLocaleDateString('en',{month:'short'}),String(d.getDate()),d.toLocaleDateString('en',{weekday:'short'})]){const s=document.createElement('span');s.textContent=text;b.append(s)}container.append(b)}}
+function appendWeek(){const week=add(first,count*7),period=document.createElement('div');window.fixture.loadedWeeks.push(week.toISOString().slice(0,10));period.className='trakt-calendar-items';const releases=location.pathname==='/discover/releases';const empty=!releases&&week.getMonth()===9&&week.getDate()===12;
+ if(empty){period.innerHTML='<div class="trakt-empty-calendar-period">No upcoming releases</div>'}else{for(const offset of (releases?[0,1,2,3,4,5,6]:[1,3,5])){const d=add(week,offset),anchor=document.createElement('div');anchor.className='calendar-day-anchor';anchor.id=dayKey(d);const card=document.createElement('trakt-calendar-item');const slug=`${filter==='movie'?'movies':'shows'}/${filter==='movie'?'Moonrise':'Harbour'}`;card.innerHTML=`<a href="/${slug}${filter==='show'?'/seasons/1/episodes/'+d.getDate():''}"><img class="trakt-card-cover-image" src="/test-images/${filter==='show'?'show-landscape':'movie-landscape'}.svg" alt="Show artwork"></a><a href="/${slug}"><p class="trakt-card-title">${filter==='movie'?'Moonrise':'Harbour & <em>Friends</em>'}</p></a><p class="trakt-card-subtitle">${filter==='movie'?'Movie':'S01E'+String(d.getDate()).padStart(2,'0')+' – Homecoming'}</p><span class="trakt-tag">20:00</span>`;card.setAttribute('data-show-year','2012');anchor.append(card);period.append(anchor)}}if(shellDelay){const pending=Array.from(period.childNodes);period.replaceChildren();setTimeout(()=>{if(period.isConnected)period.append(...pending)},shellDelay)}document.getElementById('periods').append(period);count++}
+function reset(){epoch++;loading=false;count=0;document.getElementById('periods').replaceChildren();toolbar();appendWeek();window.scrollTo(0,0)}
+document.getElementById('previous').onclick=()=>{if(stuck)return;window.fixture.weekRequests++;first=add(first,-7);reset()};document.getElementById('next').onclick=()=>{if(stuck)return;window.fixture.weekRequests++;first=add(first,7);reset()};document.getElementById('today').onclick=()=>{first=new Date(2026,9,5,12);reset()};
+document.getElementById('filter').onclick=()=>{filter=filter==='show'?'movie':'show';reset()};
+document.getElementById('away').onclick=()=>{history.pushState({},'', '/discover');document.querySelector('main').innerHTML='<h1>Discover</h1>'};
+window.addEventListener('scroll',()=>{if(!document.querySelector('.trakt-calendar-layout')||loading||stuck)return;const percentage=scrollY/(document.documentElement.scrollHeight-innerHeight);if(percentage<=.5||count>=10)return;loading=true;const requestEpoch=epoch;window.fixture.scrollRequests++;const indicator=document.createElement('div');indicator.className='loading-wrapper';indicator.textContent='Loading';document.getElementById('periods').append(indicator);setTimeout(()=>{indicator.remove();if(requestEpoch!==epoch)return;if(document.getElementById('periods'))appendWeek();loading=false},350)});
+window.fixture.routeTo=(path,{commitDelay=0,cardDelay=0}={})=>{
+ const old=document.querySelector('.trakt-calendar-layout');
+ const navigation=old.querySelector('.calendar-navigation').cloneNode(true);
+ history.pushState({},'',path);epoch++;loading=false;
+ return new Promise(resolve=>setTimeout(()=>{
+  const source=document.createElement('div');source.className='trakt-calendar-layout';
+  const periods=document.createElement('div');periods.id='periods';source.append(navigation,periods);old.replaceWith(source);
+  first=new Date(2026,9,5,12);shellDelay=cardDelay;filter=path==='/discover/releases'?'movie':'show';
+  source.querySelector('#previous').onclick=()=>{if(stuck)return;window.fixture.weekRequests++;first=add(first,-7);reset()};
+  source.querySelector('#next').onclick=()=>{if(stuck)return;window.fixture.weekRequests++;first=add(first,7);reset()};
+  source.querySelector('#today').onclick=()=>{first=new Date(2026,9,5,12);reset()};
+  reset();resolve(source);
+ },commitDelay));
+};
+reset();
+</script></html>
