@@ -1,6 +1,6 @@
 # Trakt Month Calendar 1.0.0
 
-The first release of Trakt Month Calendar adds a monthly grid to Trakt Calendar and Discover → Releases.
+The first release of Trakt Month Calendar adds a monthly grid to Trakt Calendar and Releases.
 
 ## Features
 
@@ -16,7 +16,7 @@ The first release of Trakt Month Calendar adds a monthly grid to Trakt Calendar 
 2. Extract it into a folder you will keep on your computer.
 3. Open `chrome://extensions` and enable **Developer mode**.
 4. Click **Load unpacked** and select the folder containing `manifest.json`.
-5. Open or reload Trakt Calendar or Discover → Releases.
+5. Open or reload Trakt Calendar or Releases.
 
 The repository README contains usage and update instructions. The privacy policy is available in the repository's `PRIVACY.md` file.
 
