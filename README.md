@@ -1,6 +1,6 @@
 # Trakt Month Calendar
 
-A Chrome extension by eqagunn that adds a monthly view to Trakt Calendar and Discover → Releases, while keeping Trakt's native cards and controls.
+A Chrome extension that adds a monthly view to Trakt Calendar and Releases, while keeping Trakt's native cards and controls.
 
 ![Trakt Month Calendar preview](store-assets/screenshot.png)
 
