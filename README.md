@@ -15,15 +15,11 @@ A Chrome extension that adds a monthly view to Trakt Calendar and Releases, whil
 
 ## Install in Chrome
 
-1. Download `trakt-month-calendar-v1.0.0.zip` from this repository's **Releases** page.
-2. Extract the ZIP into a folder you will keep on your computer.
-3. Open `chrome://extensions` and enable **Developer mode**.
-4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
-5. Open or reload Trakt Calendar or Discover → Releases.
+[Install Trakt Month Calendar from the Chrome Web Store](https://chromewebstore.google.com/detail/trakt-month-calendar/nkkmmbjfgblbddjicacanfhomgpgegcj)
 
-Use the runtime ZIP named above for installation. The source archive contains development files and has an outer project folder.
+After installation, open or reload Trakt Calendar or Releases. Month View appears automatically.
 
-To update an unpacked installation, replace its files with the new runtime ZIP contents, click **Reload** for the extension in `chrome://extensions`, and reload Trakt.
+Use **Switch to Original View** to return to Trakt’s weekly calendar.
 
 ## Using the calendar
 
