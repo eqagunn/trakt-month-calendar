@@ -7,7 +7,7 @@
 #trakt-month-calendar.tmc-month-scroll {
   position: fixed;
   z-index: 90;
-  overflow-y: auto;
+  overflow: hidden !important;
   overscroll-behavior: contain;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
@@ -23,10 +23,22 @@ html.tmc-calendar-loading .trakt-footer {
 /* The month viewport already includes the site’s sidebar and side offsets. */
 #trakt-month-calendar > .trakt-footer[slot="site-footer"] { margin-inline: 0 !important; padding-inline: 0 !important; width: 100%; box-sizing: border-box; }
 
-/* Keep native programmatic scrolling available without a second scrollbar. */
+/* Use 1.0.0's single scrollbar: the native loader can scroll programmatically,
+   but only the month viewport exposes a thumb to the user. Reserving a document
+   scrollbar clips the month's screen-edge thumb outside the content viewport. */
 html.tmc-month-active, html.tmc-month-active body { scrollbar-width: none !important; }
 html.tmc-month-active::-webkit-scrollbar, html.tmc-month-active body::-webkit-scrollbar { display: none !important; }
-#trakt-month-calendar.tmc-month-scroll { overflow-x: hidden; }
+/* Compensate the native action bar for the removed gutter without moving its
+   contents or allowing a second scrollbar to occupy the month thumb's space. */
+html.tmc-month-active .trakt-navbar-actions {
+  inset-inline-end: var(--tmc-native-scrollbar-width,0px) !important;
+  --scrollbar-width: var(--tmc-navbar-scrollbar-width,0px);
+  clip-path: inset(0 var(--tmc-navbar-scrollbar-clip,0px) 0 0);
+}
+/* The scrollable element lives in the shadow root so page scrollbar rules
+   cannot style or hide it. The light-DOM host never exposes a second thumb. */
+#trakt-month-calendar.tmc-month-scroll { scrollbar-width: none !important; }
+#trakt-month-calendar.tmc-month-scroll::-webkit-scrollbar { display: none !important; }
 
 /* Keep the original day selector stable when Trakt toggles is-scrolled. */
 .tmc-original-calendar .calendar-navigation {

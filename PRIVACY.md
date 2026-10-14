@@ -2,7 +2,7 @@
 
 Effective date: 11 October 2026  
 Publisher: eqagunn  
-Applies to: Trakt Month Calendar 1.0.0
+Applies to: Trakt Month Calendar
 
 ## What the extension processes
 
@@ -22,4 +22,4 @@ The extension keeps temporary calendar references and loading state in the page'
 
 ## Your control
 
-You can switch to Original View on the page. You can disable or uninstall the extension from `chrome://extensions` to stop it running. Uninstalling it does not modify or delete your Trakt account or data held by Trakt.
+You can switch to Original View on the page. You can disable or uninstall the extension through your browser's extension settings to stop it running. Uninstalling it does not modify or delete your Trakt account or data held by Trakt.

@@ -190,10 +190,10 @@ test('native watched controls are kept without overlays and show links use glanc
 test('switching to another month resets the calendar viewport before loading', {timeout:45000},async()=>{
  const e=await setup();try{
   await until(()=>loaded(e));
-  const host=e.w.document.getElementById('trakt-month-calendar');host.scrollTop=500;
+  const host=e.w.document.getElementById('trakt-month-calendar');host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop=500;
   button(e,'Previous month').click();
-  assert.equal(host.scrollTop,0,'A different month must not inherit current-week scroll');
-  await until(()=>loaded(e));assert.equal(host.scrollTop,0);
+  assert.equal(host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop,0,'A different month must not inherit current-week scroll');
+  await until(()=>loaded(e));assert.equal(host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop,0);
   assert(e.shadow.querySelector('[data-date="2026-09-01"]'));
  }finally{await e.close()}
 });
@@ -217,6 +217,18 @@ test('switching to another month resets the calendar viewport before loading', {
   e.controls.querySelector('.reset-month').click();
   await until(()=>host.dataset.centeredWeek==='2026-10-05');
   assert(e.shadow.querySelector('[data-date="2026-10-10"]'));
+ }finally{await e.close()}
+});
+
+test('current week jump leaves manual scrolling in control after layout updates',async()=>{
+ const e=await setup({preloadedMonth:true,exposeSession:true});try{
+  await until(()=>loaded(e));
+  e.controls.querySelector('.reset-month').click();
+  const viewport=e.shadow.querySelector('#tmc-month-viewport');
+  viewport.scrollTop=500;e.w.firstRowGrowth=150;
+  e.w.testMonthSession().position();e.w.testMonthSession().render();
+  assert.equal(viewport.scrollTop,500);
+  assert.equal(e.w.getComputedStyle(e.w.document.getElementById('trakt-month-calendar')).overflow,'hidden');
  }finally{await e.close()}
 });
 

@@ -1,6 +1,6 @@
 # Trakt Month Calendar
 
-A Chrome extension that adds a monthly view to Trakt Calendar and Releases, while keeping Trakt's native cards and controls.
+A browser extension that adds a monthly view to Trakt Calendar and Releases, while keeping Trakt's native cards and controls.
 
 ![Trakt Month Calendar preview](store-assets/screenshot.png)
 
@@ -13,13 +13,21 @@ A Chrome extension that adds a monthly view to Trakt Calendar and Releases, whil
 - Open show, movie, season and episode information in Trakt's glance drawers.
 - Process calendar content locally, without a separate Trakt API key, analytics or persistent extension storage.
 
-## Install in Chrome
+## Install in Chrome or Edge
 
 [Install Trakt Month Calendar from the Chrome Web Store](https://chromewebstore.google.com/detail/trakt-month-calendar/nkkmmbjfgblbddjicacanfhomgpgegcj)
 
+In Edge, allow extensions from other stores if prompted.
+
 After installation, open or reload Trakt Calendar or Releases. Month View appears automatically.
 
-Use **Switch to Original View** to return to Trakt’s weekly calendar.
+Use **Switch to Original View** to return to Trakt's weekly calendar.
+
+## Firefox and Safari
+
+The same source produces Firefox and Safari packages. The Firefox package can be loaded temporarily for development testing; normal installation requires Mozilla signing. The Safari ZIP is input for Apple's Safari Web Extension Packager, which creates the installable app. **The Safari version is untested in Safari.**
+
+See [browser support and installation](docs/BROWSER-SUPPORT.md) for requirements and validation status.
 
 ## Using the calendar
 
@@ -37,11 +45,11 @@ Read the [privacy policy](PRIVACY.md) for details.
 
 ## Support
 
-Report problems through this repository's **Issues** tab. Include your Chrome version, whether the problem occurs in Calendar or Releases, the active filters, and steps to reproduce it.
+[Report a problem on GitHub Issues](https://github.com/eqagunn/trakt-month-calendar/issues). Include your browser and version, whether the problem occurs in Calendar or Releases, the active filters, and steps to reproduce it.
 
 ## Development
 
-Build and test instructions are in [TESTING.md](TESTING.md). Run `python3 scripts/package.py` to create the distribution archives in `dist/`.
+Build and test instructions are in [TESTING.md](TESTING.md). Run `python3 scripts/package.py` to create the browser packages and source archive in `dist/`.
 
 ## License
 

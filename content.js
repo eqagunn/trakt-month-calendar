@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const VERSION='1.0.0';
+  const VERSION='1.0.1';
   if (window.__traktMonthCalendar) return;
   window.__traktMonthCalendar = true;
   const C = globalThis.TraktMonthCore;
@@ -45,6 +45,9 @@
   };
   const css = `
     :host{display:block;color:inherit;font-family:inherit;font-size:var(--font-size-text,14px);line-height:inherit;color-scheme:dark}
+    .month-viewport{height:100%;width:100%;min-height:0;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain;overflow-anchor:none;scrollbar-width:auto!important;scrollbar-color:auto!important}
+    @supports (-moz-appearance:none){.month-viewport{scrollbar-color:var(--cm-color-foreground-50,#ffffff80) transparent!important}}
+    .month-viewport::-webkit-scrollbar{display:block!important;width:var(--layout-scrollbar-width,8px)!important}.month-viewport::-webkit-scrollbar-track{background:transparent!important}.month-viewport::-webkit-scrollbar-thumb{background:var(--cm-color-foreground-50,#ffffff80)!important;border-radius:var(--border-radius-xs,4px)}.month-viewport::-webkit-scrollbar-thumb:hover{background:var(--color-foreground,#eee)!important}
     *{box-sizing:border-box}button,input{font:inherit;min-width:0}button{cursor:pointer;color:inherit;background:var(--color-background-secondary,#252830);border:1px solid var(--color-border,#3c404a);border-radius:8px;padding:6px 8px}button:hover{filter:brightness(1.2)}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid currentColor;outline-offset:2px}
     .shell,.calendar{width:100%;min-width:0}.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
     .day{min-height:var(--tmc-min-day-height,240px);border-right:1px solid var(--color-border,#292d35);border-bottom:1px solid var(--color-border,#292d35);padding:10px;min-width:0}.day:nth-child(7n){border-right:0}.outside{opacity:.4}.dayheading{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin:0 0 12px;font-size:var(--font-size-text,14px);font-weight:600;line-height:1.4}.date{font-size:2em}.today .date{color:var(--color-primary,#ed4747)}.empty{font-size:var(--font-size-text-small,12px);color:var(--color-text-secondary,#989faf);margin:8px 0}
@@ -87,10 +90,26 @@
       this.originalAria = source.getAttribute('aria-hidden');
       this.originalInert = source.inert;
       this.originalScroll = window.scrollY;
+      this.originalScrollbarWidth = document.documentElement.style.getPropertyValue('--tmc-native-scrollbar-width');
+      this.originalScrollbarPriority = document.documentElement.style.getPropertyPriority('--tmc-native-scrollbar-width');
+      document.documentElement.style.setProperty('--tmc-native-scrollbar-width',Math.max(0,innerWidth-(document.documentElement.clientWidth||innerWidth))+'px');
+      this.originalNavbarScrollbarWidth = document.documentElement.style.getPropertyValue('--tmc-navbar-scrollbar-width');
+      this.originalNavbarScrollbarPriority = document.documentElement.style.getPropertyPriority('--tmc-navbar-scrollbar-width');
+      this.originalNavbarClip = document.documentElement.style.getPropertyValue('--tmc-navbar-scrollbar-clip');
+      this.originalNavbarClipPriority = document.documentElement.style.getPropertyPriority('--tmc-navbar-scrollbar-clip');
+      const navbar=document.querySelector('.trakt-navbar-actions')||document.documentElement;
+      document.documentElement.style.setProperty('--tmc-navbar-scrollbar-width',getComputedStyle(navbar).getPropertyValue('--scrollbar-width').trim()||'0px');
       this.host = element('div');
       this.host.id = 'trakt-month-calendar';
+      this.host.dataset.build='1.0.1-shadow-scroll';
       const shadow = this.host.attachShadow({mode:'open'});
       shadow.append(element('style', css));
+      this.scroller=element('div',undefined,'month-viewport');
+      this.scroller.id='tmc-month-viewport';
+      this.scroller.tabIndex=0;
+      this.scroller.setAttribute('role','region');
+      this.scroller.setAttribute('aria-label','Scrollable monthly calendar');
+      shadow.append(this.scroller);
       this.shell = element('section', undefined, 'shell');
       this.shell.setAttribute('aria-label', 'Trakt monthly calendar');
       unpinOriginalNavigation(source);source.classList.remove('tmc-original-calendar');
@@ -132,7 +151,7 @@
       this.calendar=element('div',undefined,'calendar');
       const footerSlot=element('slot');footerSlot.name='site-footer';
       document.body.append(this.controlsHost);
-      this.shell.append(this.calendar,element('p','Trakt Month Calendar v'+VERSION+' by eqagunn','credit'),footerSlot);shadow.append(this.shell);
+      this.shell.append(this.calendar,element('p','Trakt Month Calendar v'+VERSION+' by eqagunn','credit'),footerSlot);this.scroller.append(this.shell);
       const sourceStyle=getComputedStyle(source);
       const nativeNavigation=source.querySelector('.calendar-navigation');
       this.controlsHost.style.position='fixed';
@@ -170,6 +189,9 @@
 
           this.host.style.left=left+'px';this.host.style.top='0px';
           this.host.style.height=innerHeight+'px';this.host.style.maxHeight=innerHeight+'px';
+          const monthGutter=this.scroller.offsetWidth-this.scroller.clientWidth||16;
+          const nativeGutter=parseFloat(document.documentElement.style.getPropertyValue('--tmc-native-scrollbar-width'))||0;
+          document.documentElement.style.setProperty('--tmc-navbar-scrollbar-clip',Math.max(0,monthGutter-nativeGutter)+'px');
           this.controlsHost.style.left=left+'px';
           const upper=document.querySelector('.svelte-9b8fk1');
           const lower=this.source.querySelector('.svelte-y0esg')||nativeNavigation;
@@ -277,6 +299,9 @@
       this.centerEnabled=true;
       this.centerGeometry=null;
       this.updateCenter(true);
+      // The command scrolls once. Later layout updates must not fight a user
+      // dragging a native scrollbar, which need not emit DOM pointer events.
+      this.centerEnabled=false;
     }
     updateCenter(smooth=false){
       // ResizeObserver runs before paint; avoid deferring correction to a later frame.
@@ -290,12 +315,12 @@
       const rect=day.getBoundingClientRect();
       // Match the first row's resting position, regardless of this week's height.
       const start=parseFloat(this.shell.style.paddingTop)||0;
-      const rowTop=this.host.scrollTop+rect.top-this.host.getBoundingClientRect().top;
+      const rowTop=this.scroller.scrollTop+rect.top-this.scroller.getBoundingClientRect().top;
       const geometry=[rowTop,start];
       if(this.centerGeometry && geometry.every((v,i)=>Math.abs(v-this.centerGeometry[i])<1))return;
       this.centerGeometry=geometry;
       const desired=rowTop-start;
-      this.host.scrollTo({top:Math.max(0,desired),behavior:smooth?'smooth':'instant'});
+      this.scroller.scrollTo({top:Math.max(0,desired),behavior:smooth?'smooth':'instant'});
       this.host.dataset.centeredWeek=C.key(monday);
     }
     watchCenter(){
@@ -304,7 +329,8 @@
         if(event.type==='keydown' && (event.target.closest?.('input,textarea,select,[contenteditable=true]') || this.monthDialog.open))return;
         this.centerEnabled=false;
       };
-      for(const type of ['wheel','touchstart','keydown'])window.addEventListener(type,this.centerIntentHandler,{passive:true});
+      for(const type of ['wheel','touchstart','keydown','pointerdown'])window.addEventListener(type,this.centerIntentHandler,{passive:true});
+      this.scroller.addEventListener('mousedown',this.centerIntentHandler,{passive:true});
       if(typeof ResizeObserver==='undefined')return;
       this.centerObserver=new ResizeObserver(()=>this.updateCenter());
       this.centerObserver.observe(this.calendar);
@@ -510,8 +536,8 @@
       this.centerEnabled=false;
       this.currentWeekStarted=false;
       delete this.host.dataset.centeredWeek;
-      this.host.scrollTo?.({top:0,behavior:'instant'});
-      this.host.scrollTop=0;
+      this.scroller.scrollTo?.({top:0,behavior:'instant'});
+      this.scroller.scrollTop=0;
       this.month = C.monthStart(date);
       this.confirmed = null;
       window.scrollTo({top:0,behavior:'instant'});
@@ -632,7 +658,7 @@
     }
     render() {
       if (!this.host.isConnected) return;
-      const monthScroll=this.host.scrollTop;
+      const monthScroll=this.scroller.scrollTop;
       this.updateMonthLabel();
       this.host.dataset.state=this.busy?'loading':this.complete?'ready':'partial';
       this.host.classList.add('tmc-month-scroll');
@@ -683,7 +709,7 @@
       }
       this.calendar.style.visibility='visible';
       this.syncFooter();this.sizeDays();
-      if(!this.centerEnabled && this.host.scrollTop!==monthScroll)this.host.scrollTop=monthScroll;
+      if(!this.centerEnabled && this.scroller.scrollTop!==monthScroll)this.scroller.scrollTop=monthScroll;
       this.updateCenter();
     }
     syncFooter(){
@@ -692,20 +718,27 @@
       if(!footer || footer===this.nativeFooter)return;
       this.footerPosition=document.createComment('Trakt footer position');
       footer.before(this.footerPosition);this.nativeFooter=footer;
-      const scroll=this.host.scrollTop;
-      this.footerSlotAttribute=footer.getAttribute('slot');footer.slot='site-footer';this.host.append(footer);if(!this.centerEnabled && this.host.scrollTop!==scroll)this.host.scrollTop=scroll;
+      const scroll=this.scroller.scrollTop;
+      this.footerSlotAttribute=footer.getAttribute('slot');footer.slot='site-footer';this.host.append(footer);if(!this.centerEnabled && this.scroller.scrollTop!==scroll)this.scroller.scrollTop=scroll;
     }
     snapshotState(){
       return{source:this.source,periods:Array.from(this.source.querySelectorAll('.trakt-calendar-items')),url:this.pageUrl,month:this.month,firstWeek:this.firstWeek,ranges:this.confirmedRanges.slice(),confirmed:this.confirmed,complete:!!this.complete,loadedDays:new Set(this.loadedDays)};
     }
     destroy() {
       document.documentElement.classList.remove('tmc-calendar-loading','tmc-month-active');
+      if(this.originalScrollbarWidth)document.documentElement.style.setProperty('--tmc-native-scrollbar-width',this.originalScrollbarWidth,this.originalScrollbarPriority);
+      else document.documentElement.style.removeProperty('--tmc-native-scrollbar-width');
+      if(this.originalNavbarScrollbarWidth)document.documentElement.style.setProperty('--tmc-navbar-scrollbar-width',this.originalNavbarScrollbarWidth,this.originalNavbarScrollbarPriority);
+      else document.documentElement.style.removeProperty('--tmc-navbar-scrollbar-width');
+      if(this.originalNavbarClip)document.documentElement.style.setProperty('--tmc-navbar-scrollbar-clip',this.originalNavbarClip,this.originalNavbarClipPriority);
+      else document.documentElement.style.removeProperty('--tmc-navbar-scrollbar-clip');
       this.generation++;
       clearTimeout(this.renderTimer);
       clearTimeout(this.filterTimer);
       clearInterval(this.layoutTimer);
       this.resizeObserver?.disconnect();this.centerObserver?.disconnect();
-      for(const type of ['wheel','touchstart','keydown'])window.removeEventListener(type,this.centerIntentHandler);
+      for(const type of ['wheel','touchstart','keydown','pointerdown'])window.removeEventListener(type,this.centerIntentHandler);
+      this.scroller.removeEventListener('mousedown',this.centerIntentHandler);
       this.observer.disconnect();this.restoreNativeCards();
       window.removeEventListener('resize',this.position);
       document.removeEventListener('click',this.filterHandler,true);

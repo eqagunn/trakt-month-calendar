@@ -1,29 +1,35 @@
 # Publishing
 
-This document is for maintainers. The public repository introduction is README.md, and RELEASE-NOTES.md contains the release description for users.
+This document is for maintainers. README.md is the public repository introduction, and RELEASE-NOTES.md contains the release description for users.
 
 ## Distribution files
 
 Run `python3 scripts/package.py` from the project root. The output files are:
 
-- `dist/trakt-month-calendar-v1.0.0.zip`: runtime package for Chrome Web Store or unpacked installation.
-- `dist/trakt-month-calendar-v1.0.0-source.zip`: repository source, tests, documentation and listing assets.
-- `dist/trakt-month-calendar-v1.0.0-store-assets.zip`: listing images, privacy-policy text and publisher reference documents.
+- `dist/trakt-month-calendar-v1.0.1-chrome.zip`: Chrome/Edge runtime package.
+- `dist/trakt-month-calendar-v1.0.1-firefox.zip`: Firefox package for Mozilla submission or temporary testing.
+- `dist/trakt-month-calendar-v1.0.1-safari.zip`: web-extension input for Apple's Safari packager.
+- `dist/trakt-month-calendar-v1.0.1-source.zip`: shared source, tests, documentation and listing assets.
+- `dist/trakt-month-calendar-v1.0.1-store-assets.zip`: listing images, privacy-policy text and publisher reference documents.
 
-The runtime ZIP has `manifest.json` at its root. Upload the contents of the source archive's inner `trakt-month-calendar` folder to the repository root so README.md appears on the repository homepage.
+Each browser ZIP has `manifest.json` at its root. The calendar scripts and stylesheet are identical in all builds. Upload the contents of the source archive's inner `trakt-month-calendar` folder to the repository root.
 
 ## GitHub
 
-Commit the repository files before creating the release. Use tag `v1.0.0`, title `Trakt Month Calendar 1.0.0`, and the text from RELEASE-NOTES.md. Attach the runtime ZIP for users installing unpacked. The source ZIP may be attached as an additional download.
+Commit the repository files before creating a release. Use tag `v1.0.1`, title `Trakt Month Calendar 1.0.1`, and RELEASE-NOTES.md for its description. Attach the browser ZIPs and source ZIP. Describe the Firefox ZIP as unsigned and the Safari ZIP as untested packager input.
 
-For an existing release, update its description with the current RELEASE-NOTES.md text and replace any manually attached runtime or source ZIPs with these builds. A release tag does not automatically move when later commits are made; GitHub's generated source archives reflect the tag's commit.
+Keep LICENSE and NOTICE.md in the repository and runtime archives.
 
-The project uses the MIT License. Include the root LICENSE and NOTICE.md files in the repository and distribution archives.
+## Browser stores
 
-## Chrome Web Store
+Upload the Chrome/Edge runtime ZIP to update the existing Chrome Web Store item. Its version `1.0.1` is higher than the published `1.0.0`.
 
-Use [STORE-LISTING.md](STORE-LISTING.md) for listing text and privacy declarations. Record the publicly accessible URL of the repository's PRIVACY.md page in the dashboard. The repository and its Issues page can serve as the homepage and support links.
+Submit the Firefox ZIP to Mozilla for validation and signing. Keep its add-on ID unchanged in later versions. The included metadata declares no data sent outside the local add-on/browser; local processing is still disclosed in the privacy policy.
 
-Upload the runtime ZIP as the extension package. Upload the supplied icon, screenshot and promotional image in their corresponding listing fields. Complete account details, distribution preferences and test instructions in the dashboard.
+Upload the Safari ZIP to Apple's Safari Web Extension Packager in App Store Connect. Test the resulting app through Safari/TestFlight before submitting it for App Store review. Apple packaging and Mozilla signing are separate from this local build.
 
-The manifest and footer use version `1.0.0`. Later Web Store uploads require a higher numeric manifest version.
+Use [STORE-LISTING.md](STORE-LISTING.md) for Chrome listing text and declarations. Use the publicly accessible [privacy-policy page](https://github.com/eqagunn/trakt-month-calendar/blob/main/PRIVACY.md), [repository](https://github.com/eqagunn/trakt-month-calendar) and [Issues page](https://github.com/eqagunn/trakt-month-calendar/issues) for the appropriate dashboard links.
+
+## Source of this rebuild
+
+The production files were taken from GitHub release `v1.0.0` (tag commit `995984e4e49315d9a21cac392a805e7726affac4`). Its published `trakt-month-calendar-v1.0.0-chrome.zip` has SHA-256 `a259fa5d5e21390f6ab40ebb6ba02f84ff11869cc4edee2ae70d35ae0475c3c6` and matches the tagged runtime files byte for byte. Version 1.0.1 adds browser manifests, isolates the functional month scroller from page styles while preserving native navbar positions, and updates packaging and documentation.

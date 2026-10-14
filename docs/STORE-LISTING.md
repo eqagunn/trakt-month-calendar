@@ -1,8 +1,8 @@
-# Chrome Web Store listing — Trakt Month Calendar 1.0.0
+# Chrome Web Store listing — Trakt Month Calendar 1.0.1
 
 ## Uploads
 
-- Extension ZIP: `trakt-month-calendar-v1.0.0.zip`.
+- Extension ZIP: `trakt-month-calendar-v1.0.1-chrome.zip`.
 - Extension icon: `icon.png` — 128×128 PNG, also included in the extension.
 - Screenshot: `screenshot.png` — 1280×800 PNG.
 - Small promotional image: `promo.png` — 440×280 PNG.

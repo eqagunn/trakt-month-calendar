@@ -1,11 +1,12 @@
 {
   "name": "trakt-month-calendar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "test": "node --test tests/core.test.cjs tests/jump.test.cjs tests/dom.test.cjs",
     "test:chrome": "node --test tests/native-browser.test.cjs",
-    "build": "python3 scripts/package.py"
+    "build": "python3 scripts/package.py",
+    "test:browsers": "node scripts/test-browsers.cjs"
   },
   "devDependencies": {
     "happy-dom": "^20.0.0",
