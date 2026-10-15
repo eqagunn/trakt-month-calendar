@@ -11,7 +11,7 @@ A browser extension that adds a monthly view to Trakt Calendar and Releases, whi
 - Switch between Month View and Trakt's Original View.
 - Keep native images, watched controls and card menus.
 - Open show, movie, season and episode information in Trakt's glance drawers.
-- Process calendar content locally, without a separate Trakt API key, analytics or persistent extension storage.
+- Process calendar content locally, without a separate Trakt API key or analytics.
 
 ## Install in Chrome or Edge
 
@@ -19,7 +19,7 @@ A browser extension that adds a monthly view to Trakt Calendar and Releases, whi
 
 In Edge, allow extensions from other stores if prompted.
 
-After installation, open or reload Trakt Calendar or Releases. Month View appears automatically.
+After installation, open or reload Trakt Calendar or Releases. Month View and the current-week jump are automatic by default.
 
 Use **Switch to Original View** to return to Trakt's weekly calendar.
 
@@ -31,15 +31,21 @@ See [browser support and installation](docs/BROWSER-SUPPORT.md) for requirements
 
 ## Using the calendar
 
-Month View appears automatically on Calendar and Discover → Releases. Use **Previous Month** and **Next Month** to browse. **Jump to Current Week** returns to the current month when needed and scrolls to the current week after its data is loaded.
+Month View appears automatically on Calendar and Discover → Releases, then scrolls to the current week once that week has loaded. Use **Previous Month** and **Next Month** to browse. **Jump to Current Week** returns to the current month when needed and scrolls to the current week after its data is loaded.
+
+Click the extension icon to choose **Auto** or **Manual** independently for Month View and Jump to Current Week in Calendar and Releases. All four settings default to Auto and are saved locally. Changes apply to open Trakt tabs. In Manual mode, the on-page buttons remain available.
 
 Select **Switch to Original View** to return to Trakt's weekly calendar. Select **Switch to Month View** to return to the monthly grid. Existing Trakt filters continue to determine which cards appear.
+
+Wheel scrolling uses the same smooth motion over the calendar grid, top filter bar and month controls. The filter bar uses Trakt's original gradient blur when scrolling, with its original height. Automatic current-week scrolling waits for the earlier rows and current week to settle, then keeps that week aligned if earlier cards arrive late. Manual scrolling takes control immediately.
+
+Returning from Original View reuses a fully loaded month, including when Trakt has remounted its native week containers.
 
 If loading stops, use **Load Month** to retry the remaining days.
 
 ## Privacy
 
-The extension processes Trakt page content locally in your browser. It does not send account information or page content to the developer, and it contains no analytics or persistent extension storage. Trakt continues to handle its normal website requests and account actions.
+The extension processes Trakt page content locally in your browser. It does not send account information or page content to the developer, and it contains no analytics. Only the four Auto/Manual preferences are stored persistently, in the browser’s local extension storage; calendar and account data are not stored. Trakt continues to handle its normal website requests and account actions.
 
 Read the [privacy policy](PRIVACY.md) for details.
 

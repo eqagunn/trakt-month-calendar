@@ -16,9 +16,12 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  try{
   let fixture=fs.readFileSync(path.join(__dirname,'fixture.html'),'utf8');
+  fixture=fixture.replace('class="calendar-navigation"','class="calendar-navigation svelte-y0esg"');
+  fixture=fixture.replace("source.className='trakt-calendar-layout';","source.className='trakt-calendar-layout';if(path==='/discover/releases')navigation.style.transform='translateY(-28px)';");
   fixture=fixture.replace('<header style=','<header class="trakt-navbar-actions svelte-10b0i8x" style=').replace('Calendar <button','<span class="trakt-navbar-actions-left svelte-10b0i8x">Calendar</span><div class="trakt-navbar-actions-center svelte-10b0i8x"><div class="trakt-segmented-select svelte-zxpkfh"><button>Media</button><button>Shows</button><button>Movies</button></div></div> <button');
   fixture=fixture.replace('<main>','<div class="trakt-navbar-actions-spacer svelte-10b0i8x" style="height:95px"></div><main>');
   fixture=fixture.replace('</style>','.trakt-navbar-actions{position:fixed;inset-inline:0;top:0}.trakt-navbar-actions-center{position:absolute;left:50%;top:20px;transform:translateX(-50%)}.trakt-segmented-select{display:flex;gap:8px;padding:4px;border-radius:8px}</style>');
+  fixture=fixture.replace('</style>',':root{--ni-10:10px;--color-background-navbar:#171a20}.trakt-navbar-actions::before{content:"";position:absolute;inset:0;z-index:0;opacity:0;pointer-events:none;backdrop-filter:blur(var(--ni-10));-webkit-backdrop-filter:blur(var(--ni-10));background:color-mix(in srgb,var(--color-background-navbar) 75%,transparent);mask-image:linear-gradient(to bottom,#000,#000000fc 10%,#000000f2 20%,#000000e3 30%,#000000cf 40%,#000000b5 50%,#00000096 60%,#00000073 70%,#0000004f 80%,#00000029 90%,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.trakt-navbar-actions.trakt-navbar-actions-scroll::before{opacity:1}</style>');
   // Trakt uses 8px WebKit scrollbars. A non-auto scrollbar-color in modern
   // Chrome overrides those styles, so testing only default scrollbars misses it.
   fixture=fixture.replace('</style>',`:root{--layout-scrollbar-width:8px;--cm-color-foreground-30:rgba(255,255,255,.3);--cm-color-foreground-50:rgba(255,255,255,.5)}::-webkit-scrollbar{width:${initialGutter}px;height:${initialGutter}px}::-webkit-scrollbar-thumb{background-color:transparent;border-radius:4px}body::-webkit-scrollbar-thumb,html::-webkit-scrollbar-thumb{background-color:var(--cm-color-foreground-30)}:hover::-webkit-scrollbar-thumb{background-color:var(--cm-color-foreground-50)}</style>`);
@@ -32,7 +35,10 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
   await page.goto('https://app.trakt.tv/calendar');
   const nativeGeometry=()=>page.evaluate(()=>({elements:Array.from(document.querySelectorAll('.trakt-navbar-actions,.trakt-navbar-actions-left,.trakt-navbar-actions-center,.trakt-segmented-select')).map(node=>{const r=node.getBoundingClientRect();return{left:r.left,top:r.top,width:r.width,height:r.height,style:node.getAttribute('style')}})}));
   const originalGeometry=await nativeGeometry();
-  for(const file of ['calendar-core.js','calendar-jump.js','content.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,file),'utf8')});
+  const nativeBlur=()=>page.locator('.trakt-navbar-actions').evaluate(node=>{const style=getComputedStyle(node,'::before');return Object.fromEntries(['height','top','bottom','backgroundColor','backdropFilter','maskImage'].map(key=>[key,style[key]]))});
+  const originalBlur=await nativeBlur();
+  await page.evaluate(()=>{window.chrome={storage:{local:{get:async()=>({calendarWeekAuto:false,releasesWeekAuto:false})}}}});
+  for(const file of ['preferences.js','calendar-core.js','calendar-jump.js','content.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,file),'utf8')});
   assert.deepEqual(await nativeGeometry(),originalGeometry,'Starting Month View must preserve native navbar and segmented-selector geometry');
   // Page-wide rules must not hide or recolor the protected shadow scrollbar.
   const interferingStyle=await page.addStyleTag({content:'*{scrollbar-width:none!important;scrollbar-color:transparent transparent!important}::-webkit-scrollbar{display:none!important}'});
@@ -50,6 +56,7 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
   assert.deepEqual(await nativeGeometry(),originalGeometry,'Completed month loading must preserve the original native control positions');
   assert.equal(await page.locator('#trakt-month-calendar').evaluate(host=>host.getBoundingClientRect().right),1440,'The month scrollbar must reach the screen edge');
   const viewport=page.locator('#tmc-month-viewport');
+  const calendarPadding=await page.locator('#trakt-month-calendar .shell').evaluate(node=>node.style.paddingTop);
   const scrollbar=await viewport.evaluate(host=>({overflow:getComputedStyle(host).overflowY,color:getComputedStyle(host).scrollbarColor,width:getComputedStyle(host).scrollbarWidth,thumb:getComputedStyle(host,'::-webkit-scrollbar-thumb').backgroundColor,scrollable:host.scrollHeight>host.clientHeight}));
   assert.equal(scrollbar.overflow,'auto');assert(scrollbar.scrollable);
   assert(await page.evaluate(()=>{const host=document.getElementById('trakt-month-calendar');return document.elementFromPoint(innerWidth-3,20)===host}),'The navbar must not cover the beginning of the calendar scrollbar');
@@ -85,7 +92,7 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
    await page.mouse.move(scrollX,thumbY);await page.waitForTimeout(250);await page.mouse.down();
    await page.mouse.move(scrollX,scrollMetrics.bottom-2,{steps:20});await page.mouse.up();
   }
-  try{await page.waitForFunction(()=>{const h=document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport');return h.scrollTop>=h.scrollHeight-h.clientHeight-2},{},{timeout:5000})}
+  try{await page.waitForFunction(()=>{const h=document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport');return h.scrollTop>=h.scrollHeight-h.clientHeight-.5},{},{timeout:5000})}
   catch(error){await page.screenshot({path:path.join(root,'..','month-scroll-failure-'+engineName+'.png')});throw Error(error.message+'; '+JSON.stringify({metrics:scrollMetrics,x:scrollX,y:thumbY,after:await viewport.evaluate(h=>({scroll:h.scrollTop,height:h.clientHeight,content:h.scrollHeight,width:h.clientWidth,outer:h.offsetWidth,page:scrollY}))}))}
   const end=await page.locator('#trakt-month-calendar').evaluate(host=>{const r=host.shadowRoot.querySelector('#tmc-month-viewport').getBoundingClientRect(),footer=host.querySelector('.trakt-footer').getBoundingClientRect(),last=host.shadowRoot.querySelector('[data-date="2026-10-31"]').getBoundingClientRect();return{pageScroll:scrollY,lastTop:last.top,lastBottom:last.bottom,footerTop:footer.top,footerBottom:footer.bottom,top:r.top,bottom:r.bottom}});
   assert.equal(end.pageScroll,scrollMetrics.pageScroll,'Dragging the month thumb must not scroll the background page');
@@ -95,6 +102,32 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
   assert.equal(await page.locator('#trakt-month-calendar').evaluate(host=>host.scrollTop),0,'The outer host must not expose a second scroll position');
   await viewport.press('Home');
   await page.waitForFunction(()=>document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport').scrollTop===0);
+  const pageBeforeWheel=await page.evaluate(()=>scrollY);
+  const measureWheel=async y=>{
+   await viewport.press('Home');
+   await page.waitForFunction(()=>document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport').scrollTop===0);
+   await page.evaluate(()=>{
+    window.wheelSamples=[];window.wheelRecording=true;let start;
+    const record=time=>{if(!window.wheelRecording)return;const top=document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport').scrollTop;if(top>0){start??=time;window.wheelSamples.push({time:time-start,top})}requestAnimationFrame(record)};requestAnimationFrame(record);
+   });
+   await page.mouse.move(700,y);await page.mouse.wheel(0,240);
+   await page.waitForFunction(()=>document.getElementById('trakt-month-calendar').shadowRoot.querySelector('#tmc-month-viewport').scrollTop===240);
+   return page.evaluate(()=>{window.wheelRecording=false;return window.wheelSamples});
+  };
+  const barWheel=await measureWheel(35),gridWheel=await measureWheel(350);
+  for(const samples of [barWheel,gridWheel])assert(new Set(samples.map(sample=>Math.round(sample.top))).size>3,'Both wheel surfaces must animate through multiple frames');
+  // Exact easing traces are compared with a controlled frame clock in the DOM
+  // suite. Real frame timing varies while these browsers run concurrently.
+  assert(await page.evaluate(()=>document.documentElement.classList.contains('tmc-month-scrolled')));
+  assert.equal(await page.locator('.tmc-month-navbar-backdrop').count(),0,'Reuse the native pseudo-element instead of a second blur layer');
+  assert.deepEqual(await nativeBlur(),originalBlur,'Blur height, gradient and strength must remain identical to Original View');
+  assert.equal(await page.locator('.trakt-navbar-actions').evaluate(node=>getComputedStyle(node,'::before').opacity),'1');
+  assert.equal(await page.evaluate(()=>scrollY),pageBeforeWheel,'Filter-bar wheel input must scroll the month, not the background loader');
+  assert(await page.evaluate(()=>document.querySelector('header').dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:240,ctrlKey:true}))),'Ctrl+wheel must remain available for browser zoom');
+  await viewport.press('Home');
+  await page.evaluate(()=>document.querySelector('.trakt-navbar-actions').classList.add('trakt-navbar-actions-scroll'));
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('.trakt-navbar-actions'),'::before').opacity==='0');
+  await page.evaluate(()=>document.querySelector('.trakt-navbar-actions').classList.remove('trakt-navbar-actions-scroll'));
   await interferingStyle.evaluate(style=>style.remove());
   await page.evaluate(()=>{const trigger=document.createElement('button');trigger.id='navbar-ellipsis';trigger.className='trakt-popup-menu-button';trigger.textContent='…';trigger.style.cssText='position:absolute;right:20px;top:20px';document.querySelector('header').append(trigger);fixture.attachPopup(trigger);window.requestsBeforeMenus=[fixture.weekRequests,fixture.scrollRequests]});
   for(const trigger of [first.locator('.trakt-popup-menu-button'),page.locator('#navbar-ellipsis')]){
@@ -117,6 +150,7 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
   await page.waitForTimeout(400);
   await page.screenshot({path:path.join(root,'..','native-month-'+engineName+'.png')});
   await page.locator('#trakt-month-controls .view-button').click();
+  assert.equal(await page.locator('.tmc-month-navbar-backdrop').count(),0,'Restore the native backdrop behavior in Original View');
   assert.deepEqual(await nativeGeometry(),originalGeometry,'Original View must restore the native viewport and controls');
   assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--tmc-native-scrollbar-width')),'');
   assert(await page.evaluate(()=>window.savedNativeCard.closest('.trakt-calendar-layout')!==null));
@@ -129,6 +163,11 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
   await page.locator('[data-popup-clone]').click();
   await page.locator('#trakt-month-return .view-button').click();
   assert.equal(await page.locator('#trakt-month-calendar').getAttribute('data-state'),'ready','Menu dismissal must preserve Original View reuse');
+  const assertWeekJump=async()=>{
+   await page.locator('#trakt-month-controls .reset-month').click();
+   await page.waitForFunction(()=>{const host=document.getElementById('trakt-month-calendar'),shadow=host.shadowRoot,viewport=shadow.querySelector('#tmc-month-viewport'),week=shadow.querySelector('[data-date="2026-10-05"]');return viewport.scrollTop>0 && Math.abs(week.getBoundingClientRect().top-viewport.getBoundingClientRect().top-parseFloat(shadow.querySelector('.shell').style.paddingTop))<2});
+  };
+  await assertWeekJump();
   await page.evaluate(()=>{window.legacyFrames=0;const shadow=document.getElementById('trakt-month-calendar').shadowRoot;new MutationObserver(()=>{if(shadow.querySelector('.release-link'))window.legacyFrames++}).observe(shadow,{childList:true,subtree:true})});
   assert.equal(await page.locator('#trakt-month-calendar .release-link').count(),0);
   await page.waitForFunction(()=>document.getElementById('trakt-month-calendar').dataset.state==='ready');
@@ -137,10 +176,16 @@ for(const initialGutter of [8,0])test(engineName+': native hydration, scrolling 
    await page.evaluate(path=>fixture.routeTo(path,{commitDelay:750,cardDelay:1100}),path);
    await page.waitForFunction(()=>document.getElementById('trakt-month-calendar')?.dataset.state==='ready');
    assert.deepEqual(await nativeGeometry(),originalGeometry,'Calendar and Releases must retain the same native control geometry');
+   assert.equal(await page.locator('#trakt-month-calendar .shell').evaluate(node=>node.style.paddingTop),calendarPadding,'Calendar and Releases grids must share the same resting top');
    const dates=await page.locator('#trakt-month-calendar > .tmc-native-card').evaluateAll(cards=>cards.map(n=>n.dataset.date));
    assert.equal(dates.length,path==='/discover/releases'?31:11);
    if(path==='/discover/releases')for(let day=1;day<=31;day++)assert(dates.includes('2026-10-'+String(day).padStart(2,'0')));
    assert.equal(await page.locator('#trakt-month-calendar .release-link,#trakt-month-calendar .release-body').count(),0);
+   const requests=await page.evaluate(()=>[fixture.weekRequests,fixture.scrollRequests]);
+   await page.locator('#trakt-month-controls .view-button').click();
+   await page.locator('#trakt-month-return .view-button').click();
+   await assertWeekJump();
+   assert.deepEqual(await page.evaluate(()=>[fixture.weekRequests,fixture.scrollRequests]),requests,'Restored view jumps without reloading the month');
   }
   assert.deepEqual(errors,[]);
  }finally{await browser.close()}

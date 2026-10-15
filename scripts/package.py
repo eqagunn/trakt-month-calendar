@@ -77,6 +77,8 @@ def main():
     for content_script in MANIFEST["content_scripts"]:
         runtime.update(content_script.get("js", []))
         runtime.update(content_script.get("css", []))
+    runtime.add(MANIFEST["action"]["default_popup"])
+    runtime.update({"popup.js", "popup.css"})
     for name in runtime:
         if not (ROOT / name).is_file() or Path(name).is_absolute() or ".." in Path(name).parts:
             raise ValueError(f"Invalid runtime reference: {name}")

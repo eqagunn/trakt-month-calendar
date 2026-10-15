@@ -1,6 +1,6 @@
 # Trakt Month Calendar privacy policy
 
-Effective date: 11 October 2026  
+Effective date: 15 October 2026  
 Publisher: eqagunn  
 Applies to: Trakt Month Calendar
 
@@ -18,8 +18,10 @@ Trakt and its image providers may receive the normal website requests caused by 
 
 ## Storage and retention
 
-The extension keeps temporary calendar references and loading state in the page's memory. It does not write page content, account information or preferences to extension storage, browser local storage, cookies or a persistent cache. Reloading or closing the page discards that temporary state. Trakt's own website storage and browser HTTP caching remain governed by the website and browser.
+The extension keeps calendar references and loading state temporarily in the page’s memory. Reloading or closing the page discards that state. It does not save calendar content, account information or browsing history to persistent storage.
+
+The four Auto/Manual preferences for Month View and Jump to Current Week in Calendar and Releases are saved in the browser’s local extension storage. These preferences remain after closing the page or restarting the browser, are not synced by the extension, and are not transmitted to the publisher. They can be changed from the extension popup and are removed when the extension is uninstalled. Trakt’s own website storage and browser HTTP caching remain governed by the website and browser.
 
 ## Your control
 
-You can switch to Original View on the page. You can disable or uninstall the extension through your browser's extension settings to stop it running. Uninstalling it does not modify or delete your Trakt account or data held by Trakt.
+You can choose Auto or Manual for each action from the extension popup, or switch to Original View on the page. You can disable or uninstall the extension through your browser's extension settings to stop it running. Uninstalling it does not modify or delete your Trakt account or data held by Trakt.

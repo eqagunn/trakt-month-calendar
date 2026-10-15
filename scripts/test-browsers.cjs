@@ -5,7 +5,7 @@ const names=process.argv.slice(2);
 const browsers=names.length?names:['chromium','firefox','webkit'];
 for(const name of browsers){
   if(!['chromium','firefox','webkit'].includes(name))throw Error('Unknown browser engine: '+name);
-  const result=spawnSync(process.execPath,['--test',path.join(__dirname,'../tests/native-browser.test.cjs')],{
+  const result=spawnSync(process.execPath,['--test',path.join(__dirname,'../tests/native-browser.test.cjs'),path.join(__dirname,'../tests/settings-browser.test.cjs'),path.join(__dirname,'../tests/layout-browser.test.cjs')],{
     stdio:'inherit',env:{...process.env,TEST_BROWSER:name}
   });
   if(result.error)throw result.error;

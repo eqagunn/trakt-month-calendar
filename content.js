@@ -1,9 +1,15 @@
 (function () {
   'use strict';
-  const VERSION='1.0.1';
+  const VERSION='1.0.2';
   if (window.__traktMonthCalendar) return;
   window.__traktMonthCalendar = true;
   const C = globalThis.TraktMonthCore;
+  const settings=globalThis.TraktMonthPreferences;
+  let preferences={...settings.defaults},preferencesReady=false;
+  const changedDuringLoad={};
+  const section=()=>location.pathname.replace(/\/$/,'')==='/discover/releases'?'releases':'calendar';
+  const monthIsAutomatic=()=>preferences[section()+'MonthAuto'];
+  const weekIsAutomatic=()=>preferences[section()+'WeekAuto'];
   let session = null;
   const calendarLayouts=new Map();
   let lastUrl = location.href;
@@ -70,11 +76,23 @@
       this.month = C.monthStart(month || new Date());
       this.pageUrl=calendarPageUrl(location.href);
       this.locale = document.documentElement.lang || navigator.language || 'en';
-      // Coverage is reusable only while the actual native periods still exist.
-      // A route transition or native week replacement invalidates it, even if
-      // the old month had finished loading.
+      // Reuse the native accumulator only in the same route/month context.
+      // Remounted periods must independently prove complete month coverage.
       const periods=Array.from(source.querySelectorAll('.trakt-calendar-items'));
-      const reusable=snapshot && snapshot.source===source && calendarPageUrl(snapshot.url)===this.pageUrl && C.key(snapshot.month)===C.key(this.month) && snapshot.periods.length>0 && snapshot.periods.every((period,i)=>period===periods[i]);
+      const sameContext=snapshot && snapshot.source===source && calendarPageUrl(snapshot.url)===this.pageUrl && C.key(snapshot.month)===C.key(this.month);
+      let reusable=sameContext && snapshot.periods.length>0 && snapshot.periods.every((period,i)=>period===periods[i]);
+      // Trakt can remount native periods when Original View becomes visible.
+      // Already committed coverage is reusable even when DOM identities change.
+      if(!reusable && sameContext && snapshot.complete && periods.length>=snapshot.periods.length){
+        const dates=C.toolbarDates(source,snapshot.firstWeek||new Date(),this.locale);
+        let first=dates[0];
+        if(dates.length===7)for(let i=0;i<periods.length;i++){
+          const dated=Array.from(periods[i].querySelectorAll('.calendar-day-anchor[id]')).map(node=>C.parseDay(node.id)).find(Boolean);
+          if(dated){first=C.addDays(dated,-((dated.getDay()-dates[0].getDay()+7)%7)-7*i);break;}
+        }
+        const coverage=C.coverage(source,first);
+        reusable=dates.length===7 && first && C.key(first)===C.key(snapshot.firstWeek) && coverage.start<=this.month && coverage.end>=C.monthEnd(this.month) && periods.slice(0,snapshot.periods.length).every(period=>!period.matches('[aria-busy="true"]') && !period.querySelector('.loading-wrapper') && period.querySelector('trakt-calendar-item,.trakt-empty-calendar-period,trakt-empty-calendar-period'));
+      }
       this.firstWeek = reusable?snapshot.firstWeek:null;
       this.weekReference = new Date();
       this.confirmed = reusable?snapshot.confirmed:null;
@@ -85,6 +103,10 @@
       this.preparingMonth=false;
       this.confirmedRanges=reusable?snapshot.ranges.slice():[];
       this.complete=reusable && snapshot.complete;
+      this.restoredComplete=!!this.complete;
+      this.displayThrough=reusable?snapshot.displayThrough||C.key(this.complete?C.monthEnd(this.month):C.addDays(this.month,-1)):C.key(C.addDays(this.month,-1));
+      this.currentWeekJumpRequested=weekIsAutomatic();
+      this.currentWeekJumpAutomatic=this.currentWeekJumpRequested;
       this.generation = 0;
       this.busy = !this.complete;
       this.originalAria = source.getAttribute('aria-hidden');
@@ -101,7 +123,7 @@
       document.documentElement.style.setProperty('--tmc-navbar-scrollbar-width',getComputedStyle(navbar).getPropertyValue('--scrollbar-width').trim()||'0px');
       this.host = element('div');
       this.host.id = 'trakt-month-calendar';
-      this.host.dataset.build='1.0.1-shadow-scroll';
+      this.host.dataset.build='1.0.2-preferences';
       const shadow = this.host.attachShadow({mode:'open'});
       shadow.append(element('style', css));
       this.scroller=element('div',undefined,'month-viewport');
@@ -142,16 +164,13 @@
       this.retry=this.button('Load Month','Load remaining month entries',()=>{
         this.fill(true);
       });
-      controls.append(this.button('Switch to Original View','Return to Trakt’s original calendar',()=>{
-        rememberedSnapshot=this.snapshotState();
-        bypassUrl=location.href;rememberedMonth=this.month;this.destroy();session=null;
-        window.scrollTo(0,this.originalScroll);installReturnButton(this.source);
-      },'view-button'),arrows,this.button('Jump to Current Week','Jump to Current Week',()=>this.jumpToCurrentWeek(),'reset-month'),this.status,this.retry);
+      controls.append(this.button('Switch to Original View','Return to Trakt’s original calendar',()=>this.switchToOriginal(),'view-button'),arrows,this.button('Jump to Current Week','Jump to Current Week',()=>this.jumpToCurrentWeek(),'reset-month'),this.status,this.retry);
       controlsShadow.append(controls,this.monthDialog);
       this.calendar=element('div',undefined,'calendar');
+      this.endSpace=element('div',undefined,'jump-space');this.endSpace.setAttribute('aria-hidden','true');
       const footerSlot=element('slot');footerSlot.name='site-footer';
       document.body.append(this.controlsHost);
-      this.shell.append(this.calendar,element('p','Trakt Month Calendar v'+VERSION+' by eqagunn','credit'),footerSlot);this.scroller.append(this.shell);
+      this.shell.append(this.calendar,this.endSpace,element('p','Trakt Month Calendar v'+VERSION+' by eqagunn','credit'),footerSlot);this.scroller.append(this.shell);
       const sourceStyle=getComputedStyle(source);
       const nativeNavigation=source.querySelector('.calendar-navigation');
       this.controlsHost.style.position='fixed';
@@ -208,7 +227,9 @@
             calendarLayouts.set(layoutKey,{controlsTop:this.controlsTop,gridTop:this.previewTop});
           }
           const calendarLayout=calendarLayouts.get('/calendar');
-          if(calendarLayout && layoutKey==='/discover/releases')this.controlsTop=calendarLayout.controlsTop;
+          if(calendarLayout && layoutKey==='/discover/releases'){
+            this.controlsTop=calendarLayout.controlsTop;this.previewTop=calendarLayout.gridTop;
+          }
           const top=this.previewTop;
           this.controlsHost.style.top=Math.max(0,this.controlsTop)+'px';
           this.controlsHost.style.width=Math.max(1,right-left)+'px';
@@ -218,7 +239,10 @@
         this.compact=false;this.updateMonthLabel();
         this.syncFooter();
         this.sizeDays();
+        if(this.jumpWeek)this.weekScrollTarget();
+        this.keepWeekInPlace();
         this.updateCenter();
+        this.centerOnLoadedCurrentWeek();
       };
       this.position();window.addEventListener('resize',this.position);
       this.layoutTimer=setInterval(this.position,250);
@@ -231,7 +255,7 @@
         clearTimeout(this.renderTimer);
         this.renderTimer = setTimeout(() => { if(this.valid(this.generation))this.render(); }, 100);
       });
-      this.observerOptions={childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['src','srcset','data-src','data-watched','data-watchlisted','data-favourited','data-rating','data-indicator','class','fill','disabled','aria-label']};
+      this.observerOptions={childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['src','srcset','data-src','data-watched','data-watchlisted','data-favourited','data-rating','data-indicator','class','fill','disabled','aria-label','aria-busy']};
       this.observer.observe(source,this.observerOptions);
       this.observer.observe(this.host,this.observerOptions);
       this.filterHandler = event => {
@@ -248,8 +272,13 @@
       this.watchCenter();
       if(reusable){this.collectNativeCards();}
       this.render();
-      if(this.complete){this.setStatus('Monthly calendar ready.');}
+      if(this.complete){this.setStatus('Monthly calendar ready.');this.centerOnLoadedCurrentWeek();}
       else this.fill(reusable);
+    }
+    switchToOriginal(){
+      rememberedSnapshot=this.snapshotState();
+      bypassUrl=location.href;rememberedMonth=this.month;this.destroy();session=null;
+      window.scrollTo(0,this.originalScroll);installReturnButton(this.source);
     }
     button(text, label, action, className) {
       const b = element('button',text,className);
@@ -285,55 +314,191 @@
       if(C.key(month)!==C.key(this.month))this.navigate(month);
       this.currentWeekStarted=false;
       this.currentWeekJumpRequested=true;
+      this.currentWeekJumpAutomatic=false;
       this.centerOnLoadedCurrentWeek();
     }
+    setAutomaticJump(enabled){
+      if(enabled){
+        this.currentWeekStarted=false;this.currentWeekJumpRequested=true;this.currentWeekJumpAutomatic=true;
+        this.centerOnLoadedCurrentWeek();
+      }else if(this.currentWeekJumpAutomatic){this.currentWeekJumpRequested=false;this.currentWeekJumpAutomatic=false;}
+    }
     centerOnLoadedCurrentWeek(){
-      if(!this.currentWeekJumpRequested)return;
+      if(!this.currentWeekJumpRequested || this.rendering || this.preparingMonth || !this.dayCells.size || this.gridMonth!==C.key(this.month))return;
       const today=new Date(),monday=C.addDays(today,-((today.getDay()+6)%7));
       const sunday=C.addDays(monday,6),last=sunday>C.monthEnd(this.month)?C.monthEnd(this.month):sunday;
       if(!this.currentWeekStarted && C.key(C.monthStart(today))===C.key(this.month) && this.displayThrough>=C.key(last)){
+        // Date coverage can arrive before a previous period's release list or
+        // layout has settled. Only the rows through this week can affect its
+        // start position; later weeks must not delay the jump.
+        {
+          const lastKey=C.key(last),prefix=[];
+          let pending=document.fonts?.status==='loading';
+          const loading='.loading-wrapper,[aria-busy="true"]';
+          const isPending=node=>!node.closest('.trakt-card-content:not(.is-visible)');
+          const periods=Array.from(this.source.querySelectorAll('.trakt-calendar-items'));
+          for(let i=0;i<periods.length;i++){
+            if(!this.firstWeek || C.addDays(this.firstWeek,i*7)>last)break;
+            pending ||= periods[i].matches('[aria-busy="true"]') || Array.from(periods[i].querySelectorAll(loading)).some(isPending);
+            for(const anchor of periods[i].querySelectorAll('.calendar-day-anchor[id]')){
+              const date=C.parseDay(anchor.id);
+              if(date && date>=this.month && date<=last && anchor.querySelector('trakt-calendar-item'))pending=true;
+            }
+          }
+          for(const [key,day] of this.dayCells)if(!day.outside && key<=lastKey){
+            prefix.push(key,Math.round(day.cell.getBoundingClientRect().height*2)/2,day.cell.querySelectorAll('.native-release').length);
+          }
+          for(const node of this.host.querySelectorAll(loading)){
+            const wrapper=node.closest('.tmc-native-card');
+            if(wrapper && wrapper.dataset.date<=lastKey && isPending(node))pending=true;
+          }
+          const signature=JSON.stringify([this.shell.style.paddingTop,prefix]),now=performance.now();
+          if(pending || ((this.busy || this.currentWeekJumpAutomatic) && !this.restoredComplete)){
+            if(pending || this.weekJumpSignature!==signature){this.weekJumpSignature=signature;this.weekJumpStableSince=now;}
+            const remaining=750-(now-this.weekJumpStableSince);
+            if(pending || remaining>0){
+              clearTimeout(this.weekJumpTimer);
+              this.weekJumpTimer=setTimeout(()=>{if(this.valid(this.generation))this.centerOnLoadedCurrentWeek()},pending?100:remaining+1);
+              return;
+            }
+          }
+        }
+        clearTimeout(this.weekJumpTimer);
         this.currentWeekJumpRequested=false;this.currentWeekStarted=true;this.centerOnCurrentWeek();
       }
     }
     centerOnCurrentWeek(){
+      this.cancelJump();
       this.centerEnabled=true;
       this.centerGeometry=null;
       this.updateCenter(true);
-      // The command scrolls once. Later layout updates must not fight a user
-      // dragging a native scrollbar, which need not emit DOM pointer events.
       this.centerEnabled=false;
     }
-    updateCenter(smooth=false){
-      // ResizeObserver runs before paint; avoid deferring correction to a later frame.
-      if(!this.centerEnabled)return;
-      if(!this.valid(this.generation))return;
+    weekScrollTarget(){
       const today=new Date();
-      if(C.key(C.monthStart(today))!==C.key(this.month))return;
+      if(C.key(C.monthStart(today))!==C.key(this.month))return null;
       const monday=C.addDays(today,-((today.getDay()+6)%7));
       const day=this.calendar.querySelector('[data-date="'+C.key(monday)+'"]')||this.calendar.querySelector('.today');
-      if(!day)return;
+      if(!day)return null;
       const rect=day.getBoundingClientRect();
-      // Match the first row's resting position, regardless of this week's height.
       const start=parseFloat(this.shell.style.paddingTop)||0;
       const rowTop=this.scroller.scrollTop+rect.top-this.scroller.getBoundingClientRect().top;
-      const geometry=[rowTop,start];
-      if(this.centerGeometry && geometry.every((v,i)=>Math.abs(v-this.centerGeometry[i])<1))return;
-      this.centerGeometry=geometry;
-      const desired=rowTop-start;
-      this.scroller.scrollTo({top:Math.max(0,desired),behavior:smooth?'smooth':'instant'});
-      this.host.dataset.centeredWeek=C.key(monday);
+      const top=Math.max(0,rowTop-start),height=this.scroller.clientHeight||innerHeight;
+      const oldSpace=parseFloat(this.endSpace.style.height)||0;
+      const baseHeight=this.shell.getBoundingClientRect().height-oldSpace;
+      // A short final week must still be able to reach the first row's resting
+      // position. Put any necessary space before the credit and native footer.
+      const space=Math.max(0,Math.ceil(top+height-baseHeight));
+      if(Math.abs(space-oldSpace)>1)this.endSpace.style.height=space+'px';
+      return{top,week:C.key(monday)};
+    }
+    cancelJump(){
+      cancelAnimationFrame(this.jumpFrame);this.jumpFrame=null;this.jumpAnimation=null;this.weekAnchor=null;this.centerEnabled=false;
+    }
+    keepWeekInPlace(){
+      const anchor=this.weekAnchor;
+      if(!anchor || this.jumpAnimation || !this.valid(this.generation))return;
+      if(Math.abs(this.scroller.scrollTop-anchor.lastWrite)>2){this.weekAnchor=null;return;}
+      const target=this.weekScrollTarget();if(!target){this.weekAnchor=null;return;}
+      const delta=target.top-anchor.target;
+      if(Math.abs(delta)>.5){
+        this.scroller.scrollTo({top:this.scroller.scrollTop+delta,behavior:'instant'});
+        anchor.lastWrite=this.scroller.scrollTop;
+      }
+      anchor.target=target.top;
+    }
+    updateCenter(smooth=false){
+      if(!this.centerEnabled || !this.valid(this.generation))return;
+      const target=this.weekScrollTarget();if(!target)return;
+      this.jumpWeek=target.week;
+      if(!smooth){this.scroller.scrollTo({top:target.top,behavior:'instant'});this.host.dataset.centeredWeek=target.week;return;}
+      const animation={from:this.scroller.scrollTop,lastWrite:this.scroller.scrollTop,target:target.top,start:null,changedAt:0};
+      this.jumpAnimation=animation;
+      const frame=time=>{
+        if(this.jumpAnimation!==animation || !this.valid(this.generation))return;
+        // Native scrollbar dragging may not emit pointer events. Its scroll
+        // position still differs from our last frame, which cancels the jump.
+        if(Math.abs(this.scroller.scrollTop-animation.lastWrite)>2){this.cancelJump();return;}
+        const next=this.weekScrollTarget();if(!next){this.cancelJump();return;}
+        if(animation.start===null){animation.start=time;animation.changedAt=time;}
+        if(Math.abs(next.top-animation.target)>1){animation.target=next.top;animation.changedAt=time;}
+        const progress=Math.min(1,(time-animation.start)/350),ease=1-Math.pow(1-progress,3);
+        this.scroller.scrollTo({top:animation.from+(next.top-animation.from)*ease,behavior:'instant'});
+        animation.lastWrite=this.scroller.scrollTop;
+        if(progress===1 && time-animation.changedAt>=100 && Math.abs(animation.lastWrite-next.top)<2){
+          this.weekAnchor={target:next.top,lastWrite:animation.lastWrite};
+          this.jumpAnimation=null;this.jumpFrame=null;this.host.dataset.centeredWeek=next.week;
+        }else this.jumpFrame=requestAnimationFrame(frame);
+      };
+      this.jumpFrame=requestAnimationFrame(frame);
     }
     watchCenter(){
       this.centerIntentHandler=event=>{
         if(event.type==='keydown' && !['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
         if(event.type==='keydown' && (event.target.closest?.('input,textarea,select,[contenteditable=true]') || this.monthDialog.open))return;
-        this.centerEnabled=false;
+        this.cancelJump();
+        if(event.type!=='wheel')this.cancelWheelScroll();
       };
       for(const type of ['wheel','touchstart','keydown','pointerdown'])window.addEventListener(type,this.centerIntentHandler,{passive:true});
       this.scroller.addEventListener('mousedown',this.centerIntentHandler,{passive:true});
+      this.scrollerScrollHandler=()=>{
+        if(this.jumpAnimation && Math.abs(this.scroller.scrollTop-this.jumpAnimation.lastWrite)>2)this.cancelJump();
+        if(this.weekAnchor && Math.abs(this.scroller.scrollTop-this.weekAnchor.lastWrite)>2)this.weekAnchor=null;
+        if(this.wheelFrame && Math.abs(this.scroller.scrollTop-this.wheelLastWrite)>2)this.cancelWheelScroll();
+        this.markScrollMotion();
+        document.documentElement.classList.toggle('tmc-month-scrolled',this.scroller.scrollTop>1);
+      };
+      this.scroller.addEventListener('scroll',this.scrollerScrollHandler,{passive:true});
+      this.monthWheelHandler=event=>{
+        if(!this.valid(this.generation))return;
+        if(event.defaultPrevented || event.ctrlKey || event.shiftKey || !event.deltaY || Math.abs(event.deltaX)>Math.abs(event.deltaY) || this.monthDialog.open){this.cancelWheelScroll();return;}
+        const path=event.composedPath(),target=event.target;
+        if(target.closest?.('dialog,[role="dialog"],[role="listbox"],.trakt-modal,.trakt-drawer,'+popupControls)){this.cancelWheelScroll();return;}
+        if(!path.includes(this.host) && !path.includes(this.controlsHost) && !target.closest?.('.trakt-navbar-actions,.trakt-navbar,header,.svelte-9b8fk1')){this.cancelWheelScroll();return;}
+        // A dropdown's own scroll area takes precedence over the calendar.
+        for(const node of path){
+          if(node===this.scroller || node===document.body || node===document.documentElement)break;
+          if(node.nodeType!==1)continue;
+          if(node.scrollHeight>node.clientHeight+1 && /auto|scroll/.test(getComputedStyle(node).overflowY)){this.cancelWheelScroll();return;}
+        }
+        event.preventDefault();this.cancelJump();this.markScrollMotion();
+        const unit=event.deltaMode===2?this.scroller.clientHeight:event.deltaMode===1?(parseFloat(getComputedStyle(this.scroller).lineHeight)||16):1;
+        const delta=event.deltaY*unit;
+        if(this.wheelDestination==null || Math.sign(delta)!==Math.sign(this.lastWheelDelta))this.wheelDestination=this.scroller.scrollTop;
+        this.lastWheelDelta=delta;
+        this.wheelDestination=Math.max(0,Math.min(Math.max(0,this.scroller.scrollHeight-this.scroller.clientHeight),this.wheelDestination+delta));
+        if(!this.wheelFrame){
+          this.wheelLastWrite=this.scroller.scrollTop;this.wheelTime=null;
+          const frame=time=>{
+            if(!this.valid(this.generation)){this.cancelWheelScroll();return;}
+            if(Math.abs(this.scroller.scrollTop-this.wheelLastWrite)>2){this.cancelWheelScroll();return;}
+            const elapsed=this.wheelTime===null?1000/60:Math.min(64,time-this.wheelTime);this.wheelTime=time;
+            const target=Math.max(0,Math.min(Math.max(0,this.scroller.scrollHeight-this.scroller.clientHeight),this.wheelDestination));
+            const remaining=target-this.scroller.scrollTop;
+            // One frame loop serves the grid and fixed controls. New input
+            // extends the destination without restarting an easing animation.
+            const done=Math.abs(remaining)<=1;
+            // Firefox may quantize scroll offsets to whole CSS pixels.
+            const step=Math.sign(remaining)*Math.min(Math.abs(remaining),Math.max(1,Math.abs(remaining)*(1-Math.exp(-elapsed/60))));
+            const next=done?target:this.scroller.scrollTop+step;
+            this.markScrollMotion();this.scroller.scrollTo({top:next,behavior:'instant'});this.wheelLastWrite=this.scroller.scrollTop;
+            if(done)this.cancelWheelScroll();
+            else this.wheelFrame=requestAnimationFrame(frame);
+          };
+          this.wheelFrame=requestAnimationFrame(frame);
+        }
+      };
+      window.addEventListener('wheel',this.monthWheelHandler,{capture:true,passive:false});
       if(typeof ResizeObserver==='undefined')return;
-      this.centerObserver=new ResizeObserver(()=>this.updateCenter());
+      this.centerObserver=new ResizeObserver(()=>{this.keepWeekInPlace();this.updateCenter()});
       this.centerObserver.observe(this.calendar);
+    }
+    markScrollMotion(){
+      this.scrollActive=true;clearTimeout(this.scrollIdleTimer);
+      this.scrollIdleTimer=setTimeout(()=>{this.scrollActive=false},200);
+    }
+    cancelWheelScroll(){
+      cancelAnimationFrame(this.wheelFrame);this.wheelFrame=null;this.wheelDestination=null;this.wheelLastWrite=null;this.wheelTime=null;
     }
     openMonthPicker(){
       this.selectionYear=this.month.getFullYear();this.renderMonthPicker();
@@ -406,12 +571,21 @@
           record.view?.remove();record.wrapper.remove();record.space.remove();this.nativeCards.delete(card);
         }
       }
+      const candidates=[],seen=new Set();
       for(const anchor of this.source.querySelectorAll('.calendar-day-anchor[id]')){
         const date=C.parseDay(anchor.id);
         if(!date || C.key(date)<C.key(this.month) || date>C.monthEnd(this.month))continue;
         for(const card of anchor.querySelectorAll('trakt-calendar-item')){
-          if(this.nativeCards.has(card))continue;
-          const box=(card.querySelector('.trakt-card')||card).getBoundingClientRect();
+          if(this.nativeCards.has(card)||seen.has(card))continue;
+          seen.add(card);
+          candidates.push({card,date});
+        }
+      }
+      // Finish every geometry read before moving any card. Interleaving them
+      // forces a full layout for each item in a large Releases month.
+      for(const candidate of candidates)candidate.box=(candidate.card.querySelector('.trakt-card')||candidate.card).getBoundingClientRect();
+      const fragment=document.createDocumentFragment();
+      for(const {card,date,box} of candidates){
           const space=element('div');space.className='tmc-native-card-space';
           space.style.cssText='width:'+Math.max(1,box.width)+'px;height:'+Math.max(1,box.height)+'px;flex:none';
           card.before(space);
@@ -419,10 +593,10 @@
           wrapper.dataset.date=C.key(date);wrapper.dataset.tmcDate=C.key(date);
           wrapper.slot='native-card-'+(++this.nativeSlotSequence);wrapper.id='tmc-'+wrapper.slot;
           const record={card,wrapper,space,date:C.key(date),originalSlot:card.getAttribute('slot')};
-          this.nativeCards.set(card,record);wrapper.append(card);this.host.append(wrapper);
+          this.nativeCards.set(card,record);wrapper.append(card);fragment.append(wrapper);
           wrapper.addEventListener('click',event=>this.nativeCardClick(event,record),true);
-        }
       }
+      if(fragment.childNodes.length)this.host.append(fragment);
     }
     restoreNativeCards(){
       for(const {card,wrapper,space,details,linkOverrides,view} of this.nativeCards.values()){
@@ -434,7 +608,10 @@
       this.nativeCards.clear();
     }
     nativeItem(record){
-      return C.readEntries({querySelectorAll:()=>[record.wrapper]},location.origin).get(record.date)?.[0];
+      const signature=(record.card.querySelector('a[href]')?.getAttribute('href')||'')+'|'+(record.card.querySelector('.trakt-card-subtitle')?.textContent||'');
+      if(record.item && record.itemSignature===signature)return record.item;
+      record.itemSignature=signature;
+      return record.item=C.readEntries({querySelectorAll:()=>[record.wrapper]},location.origin).get(record.date)?.[0];
     }
     nativeCardClick(event,record){
       const link=event.target.closest('a[href]');
@@ -478,8 +655,7 @@
       if(subtitle && record.subtitle!==item.subtitle){
         record.details?.remove();record.subtitle=item.subtitle;
         const detail=element('span',undefined,'tmc-native-details');detail.title=item.subtitle;
-        const textStyle=getComputedStyle(subtitle);
-        for(const property of ['fontFamily','fontSize','fontWeight','lineHeight'])detail.style[property]=textStyle[property];
+        Object.assign(detail.style,record.detailTypography);
         const parts=item.subtitle.match(/^(.*?)(S\d+)(\s*[•·⋅\-–]?\s*)(E\d+)(.*)$/i)||item.subtitle.match(/^(.*?)(\d+)(\s*[x×]\s*)(\d+)(.*)$/i);
         const urls=this.nativeDrawerUrls(item),a=(text,href,cls)=>{const link=element('a',text,cls);link.href=href;return link};
         if(/^\s*Season\s+\d+/i.test(item.subtitle))detail.append(a(item.subtitle,urls.season,'tmc-season-link'));
@@ -531,8 +707,11 @@
       return result;
     }
     navigate(date) {
+      this.cancelJump();this.cancelWheelScroll();this.jumpWeek=null;this.endSpace.style.height='0px';
+      clearTimeout(this.weekJumpTimer);this.weekJumpSignature=null;this.restoredComplete=false;
       this.restoreNativeCards();
-      this.currentWeekJumpRequested=false;
+      this.currentWeekJumpRequested=weekIsAutomatic();
+      this.currentWeekJumpAutomatic=this.currentWeekJumpRequested;
       this.centerEnabled=false;
       this.currentWeekStarted=false;
       delete this.host.dataset.centeredWeek;
@@ -545,6 +724,8 @@
       this.fill();
     }
     async fill(preserveKnown=false) {
+      this.cancelJump();
+      clearTimeout(this.weekJumpTimer);this.weekJumpSignature=null;this.restoredComplete=false;
       if(!preserveKnown)this.restoreNativeCards();
       const token = ++this.generation;
       this.busy = true;
@@ -658,6 +839,7 @@
     }
     render() {
       if (!this.host.isConnected) return;
+      this.rendering=true;
       const monthScroll=this.scroller.scrollTop;
       this.updateMonthLabel();
       this.host.dataset.state=this.busy?'loading':this.complete?'ready':'partial';
@@ -690,6 +872,13 @@
       }
       const cardsByDay=new Map();
       for(const record of this.nativeCards.values()){
+        const subtitle=record.card.querySelector('.trakt-card-subtitle');
+        if(subtitle && record.subtitle!==subtitle.textContent.trim()){
+          const style=getComputedStyle(subtitle);record.detailTypography={};
+          for(const property of ['fontFamily','fontSize','fontWeight','lineHeight'])record.detailTypography[property]=style[property];
+        }
+      }
+      for(const record of this.nativeCards.values()){
         this.decorateNativeCard(record);
         if(!record.view){
           record.view=element('div',undefined,'native-release');
@@ -709,8 +898,11 @@
       }
       this.calendar.style.visibility='visible';
       this.syncFooter();this.sizeDays();
-      if(!this.centerEnabled && this.scroller.scrollTop!==monthScroll)this.scroller.scrollTop=monthScroll;
+      this.keepWeekInPlace();
+      if(!this.centerEnabled && !this.jumpAnimation && !this.weekAnchor && !this.scrollActive && this.scroller.scrollTop!==monthScroll)this.scroller.scrollTop=monthScroll;
       this.updateCenter();
+      this.rendering=false;
+      this.centerOnLoadedCurrentWeek();
     }
     syncFooter(){
       if(this.busy)return;
@@ -719,13 +911,14 @@
       this.footerPosition=document.createComment('Trakt footer position');
       footer.before(this.footerPosition);this.nativeFooter=footer;
       const scroll=this.scroller.scrollTop;
-      this.footerSlotAttribute=footer.getAttribute('slot');footer.slot='site-footer';this.host.append(footer);if(!this.centerEnabled && this.scroller.scrollTop!==scroll)this.scroller.scrollTop=scroll;
+      this.footerSlotAttribute=footer.getAttribute('slot');footer.slot='site-footer';this.host.append(footer);if(!this.centerEnabled && !this.jumpAnimation && !this.weekAnchor && !this.scrollActive && this.scroller.scrollTop!==scroll)this.scroller.scrollTop=scroll;
     }
     snapshotState(){
-      return{source:this.source,periods:Array.from(this.source.querySelectorAll('.trakt-calendar-items')),url:this.pageUrl,month:this.month,firstWeek:this.firstWeek,ranges:this.confirmedRanges.slice(),confirmed:this.confirmed,complete:!!this.complete,loadedDays:new Set(this.loadedDays)};
+      return{source:this.source,periods:Array.from(this.source.querySelectorAll('.trakt-calendar-items')),url:this.pageUrl,month:this.month,firstWeek:this.firstWeek,ranges:this.confirmedRanges.slice(),confirmed:this.confirmed,complete:!!this.complete,loadedDays:new Set(this.loadedDays),displayThrough:this.displayThrough};
     }
     destroy() {
-      document.documentElement.classList.remove('tmc-calendar-loading','tmc-month-active');
+      document.documentElement.classList.remove('tmc-calendar-loading','tmc-month-active','tmc-month-scrolled');
+      this.cancelJump();this.cancelWheelScroll();clearTimeout(this.scrollIdleTimer);
       if(this.originalScrollbarWidth)document.documentElement.style.setProperty('--tmc-native-scrollbar-width',this.originalScrollbarWidth,this.originalScrollbarPriority);
       else document.documentElement.style.removeProperty('--tmc-native-scrollbar-width');
       if(this.originalNavbarScrollbarWidth)document.documentElement.style.setProperty('--tmc-navbar-scrollbar-width',this.originalNavbarScrollbarWidth,this.originalNavbarScrollbarPriority);
@@ -735,10 +928,13 @@
       this.generation++;
       clearTimeout(this.renderTimer);
       clearTimeout(this.filterTimer);
+      clearTimeout(this.weekJumpTimer);
       clearInterval(this.layoutTimer);
       this.resizeObserver?.disconnect();this.centerObserver?.disconnect();
       for(const type of ['wheel','touchstart','keydown','pointerdown'])window.removeEventListener(type,this.centerIntentHandler);
       this.scroller.removeEventListener('mousedown',this.centerIntentHandler);
+      this.scroller.removeEventListener('scroll',this.scrollerScrollHandler);
+      window.removeEventListener('wheel',this.monthWheelHandler,true);
       this.observer.disconnect();this.restoreNativeCards();
       window.removeEventListener('resize',this.position);
       document.removeEventListener('click',this.filterHandler,true);
@@ -781,6 +977,7 @@
 
   }
   function reconcile() {
+    if(!preferencesReady)return;
     if (location.href !== lastUrl && calendarPageUrl(location.href)===calendarPageUrl(lastUrl)){lastUrl=location.href}
     if (location.href !== lastUrl) {
       const routeChanged=new URL(location.href).pathname!==new URL(lastUrl).pathname;
@@ -798,7 +995,8 @@
       const source = document.querySelector('.trakt-calendar-layout');
       if(source && source!==retiringSource){
         retiringSource=null;
-        try{session=new MonthSession(source)}catch(error){
+        if(!monthIsAutomatic()){bypassUrl=location.href;installReturnButton(source);return;}
+        try{session=new MonthSession(source,rememberedMonth,rememberedSnapshot);rememberedSnapshot=null;}catch(error){
           source.classList.remove('tmc-native-source','tmc-native-parked');
           source.inert=false;source.removeAttribute('aria-hidden');
           document.getElementById('trakt-month-calendar')?.remove();
@@ -826,5 +1024,17 @@
   // Content scripts also run on non-calendar pages to handle Svelte SPA navigation.
   new MutationObserver(reconcile).observe(document,{childList:true,subtree:true});
   setInterval(reconcile,500);
+  settings.subscribe(changes=>{
+    if(!preferencesReady){Object.assign(changedDuringLoad,changes);return;}
+    const before=preferences;preferences={...preferences,...changes};
+    const monthKey=section()+'MonthAuto',weekKey=section()+'WeekAuto';
+    if(before[monthKey]!==preferences[monthKey]){
+      if(!preferences[monthKey] && session)session.switchToOriginal();
+      else if(preferences[monthKey]){bypassUrl=null;removeReturnHost();}
+    }
+    if(session && before[weekKey]!==preferences[weekKey])session.setAutomaticJump(preferences[weekKey]);
+    reconcile();
+  });
+  settings.load().then(values=>{preferences={...values,...changedDuringLoad};preferencesReady=true;reconcile()}).catch(()=>{Object.assign(preferences,changedDuringLoad);preferencesReady=true;reconcile()});
   reconcile();
 })();

@@ -33,8 +33,12 @@ html.tmc-month-active::-webkit-scrollbar, html.tmc-month-active body::-webkit-sc
 html.tmc-month-active .trakt-navbar-actions {
   inset-inline-end: var(--tmc-native-scrollbar-width,0px) !important;
   --scrollbar-width: var(--tmc-navbar-scrollbar-width,0px);
-  clip-path: inset(0 var(--tmc-navbar-scrollbar-clip,0px) 0 0);
+  clip-path: inset(-100vh var(--tmc-navbar-scrollbar-clip,0px) -100vh 0);
 }
+/* Keep Trakt's own blur geometry, colors and gradient mask. Only its visibility
+   follows the monthly viewport instead of the hidden native loading scroll. */
+html.tmc-month-active .trakt-navbar-actions::before { opacity: 0 !important; }
+html.tmc-month-active.tmc-month-scrolled .trakt-navbar-actions::before { opacity: 1 !important; }
 /* The scrollable element lives in the shadow root so page scrollbar rules
    cannot style or hide it. The light-DOM host never exposes a second thumb. */
 #trakt-month-calendar.tmc-month-scroll { scrollbar-width: none !important; }

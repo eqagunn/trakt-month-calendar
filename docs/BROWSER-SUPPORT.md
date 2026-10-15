@@ -6,9 +6,9 @@ All targets use the same calendar scripts and stylesheet. The build adjusts brow
 
 | Target | Minimum declared version | Package |
 | --- | --- | --- |
-| Chrome / Edge | 111 | `trakt-month-calendar-v1.0.1-chrome.zip` |
-| Firefox desktop | 142 | `trakt-month-calendar-v1.0.1-firefox.zip` |
-| Safari | 18 | `trakt-month-calendar-v1.0.1-safari.zip` |
+| Chrome / Edge | 111 | `trakt-month-calendar-v1.0.2-chrome.zip` |
+| Firefox desktop | 142 | `trakt-month-calendar-v1.0.2-firefox.zip` |
+| Safari | 18 | `trakt-month-calendar-v1.0.2-safari.zip` |
 
 The page-level navigation bridge requires `content_scripts.world: "MAIN"`. [MDN's content-script reference](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/content_scripts) documents this feature. Firefox's build also includes its current data-consent metadata. Firefox Android is not enabled in this release; mobile browser layouts have not been validated.
 
@@ -38,10 +38,10 @@ Apple offers the [Safari Web Extension Packager in App Store Connect](https://de
 
 A Playwright WebKit fixture verifies the shared page code and layout. It does not verify Apple's extension wrapper, Safari website-permission prompts or the current live Trakt site. Real Safari extension testing remains required.
 
-## Validation for 1.0.1
+## Validation for 1.0.2
 
-- All 38 date, bridge and DOM checks pass.
-- The calendar fixture passes with normal and overlay document scrollbars in Chromium, Firefox and WebKit, including dragging the protected calendar thumb to the footer.
-- The generated Firefox package loads as a real temporary add-on, and its MAIN/ISOLATED event bridge successfully performs a native week jump.
-- Mozilla validation reports zero errors, notices and warnings.
-- Real Safari app installation and signed-in account actions remain unverified.
+- All 54 regressions and 15 Chromium/Firefox/WebKit fixture cases pass. Mozilla validation reports zero errors, notices and warnings.
+- Regression coverage includes retained-view jumps in both sections, all four Auto/Manual preferences, local storage changes, persistence and error handling.
+- Cross-browser fixtures cover native cards, Month View scrollbars, matching filter-bar/grid wheel motion, the native blur's original dimensions and styles, dense Releases week alignment, late earlier cards, immediate reuse after native periods remount, Original View restoration, and the settings popup changing both sections of an open page.
+- Browser fixtures supply a test adapter for the extension storage API. Installed extension behavior and signed-in account actions still require a live smoke test.
+- The Safari app remains untested in Safari.

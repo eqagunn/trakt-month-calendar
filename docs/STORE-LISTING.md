@@ -1,8 +1,8 @@
-# Chrome Web Store listing — Trakt Month Calendar 1.0.1
+# Chrome Web Store listing — Trakt Month Calendar 1.0.2
 
 ## Uploads
 
-- Extension ZIP: `trakt-month-calendar-v1.0.1-chrome.zip`.
+- Extension ZIP: `trakt-month-calendar-v1.0.2-chrome.zip`.
 - Extension icon: `icon.png` — 128×128 PNG, also included in the extension.
 - Screenshot: `screenshot.png` — 1280×800 PNG.
 - Small promotional image: `promo.png` — 440×280 PNG.
@@ -23,7 +23,9 @@ See your Trakt Calendar and Discover → Releases in a monthly grid.
 
 Trakt Month Calendar arranges Trakt's own cards into a month view while keeping native images, watched controls and information drawers. Move between months, jump to the current week, or switch back to Original View from the controls above the calendar.
 
-The extension uses the website's existing calendar loading and navigation. It processes the page locally in your browser, without a separate Trakt API key, analytics or persistent data storage.
+Click the extension icon to choose Auto or Manual separately for Month View and Jump to Current Week in Calendar and Releases. All four settings default to Auto.
+
+The extension uses the website's existing calendar loading and navigation. It processes the page locally in your browser, without a separate Trakt API key or analytics. Only your four Auto/Manual preferences are saved in local extension storage.
 
 An independent extension by eqagunn. Not affiliated with or endorsed by Trakt.
 
@@ -35,7 +37,11 @@ Display Trakt Calendar and Discover → Releases as a monthly calendar using the
 
 Website access justification:
 
-Access to the HTTPS Trakt domains listed in the manifest is used to identify the active calendar section, read dates and native cards, arrange those cards into a month, and invoke Trakt's existing calendar navigation. The extension does not access other websites or request additional privileged extension APIs.
+Access to the HTTPS Trakt domains listed in the manifest is used to identify the active calendar section, read dates and native cards, arrange those cards into a month, and invoke Trakt's existing calendar navigation. The extension does not access other websites or use extension APIs to access your browsing history. The storage permission saves only the four local Auto/Manual preferences.
+
+Storage permission justification:
+
+Save and restore the four Auto/Manual preferences locally for Calendar and Releases. No page content or account information is stored or transmitted.
 
 Remote code:
 
@@ -43,7 +49,7 @@ No remote executable code is loaded by the extension. Its JavaScript and CSS are
 
 Data handling:
 
-Trakt website content is processed locally to provide the month view. The publisher receives no page content or account information. No analytics, advertising or persistent data storage is included. Native Trakt functionality continues to make ordinary website and image requests. Use PRIVACY.md as the privacy-policy text and ensure the dashboard declarations accurately reflect local processing of website content and the page URL.
+Trakt website content is processed locally to provide the month view. The publisher receives no page content or account information. No analytics or advertising is included. Only the four Auto/Manual preferences persist in local extension storage; no calendar or account data is stored. Native Trakt functionality continues to make ordinary website and image requests. Use PRIVACY.md as the privacy-policy text and ensure the dashboard declarations accurately reflect local processing of website content and the page URL.
 
 ## Dashboard links and publisher details
 

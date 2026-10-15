@@ -25,6 +25,7 @@ async function setup(options={}){
   w.HTMLElement.prototype.scrollIntoView=function(){const content=this.querySelector('.trakt-card-content');if(content&&!content.classList.contains('is-visible')){content.append(...content._pending);content.classList.add('is-visible');w.revealedCards=(w.revealedCards||0)+1}};
  }
  if(options.delayedEarlierCards)fixture=fixture.replace("document.getElementById('periods').append(period);count++","if(week.getMonth()===8){const late=Array.from(period.children).slice(1);for(const node of late)node.remove();setTimeout(()=>period.append(...late),1100)}document.getElementById('periods').append(period);count++");
+ if(options.busyEarlierPeriod)fixture=fixture.replace("document.getElementById('periods').append(period);count++","if(week.getMonth()===8){period.setAttribute('aria-busy','true');window.fixture.pendingEarlier=period}document.getElementById('periods').append(period);count++");
  if(options.blockScroll)fixture=fixture.replace('loading||stuck','loading||stuck||true');
  if(options.emptyCalendar)fixture=fixture.replace('const empty=!releases&&week.getMonth()===9&&week.getDate()===12','const empty=true');
  if(options.emptyLimit)fixture=fixture.replace('count>=10','count>=5');
@@ -34,15 +35,17 @@ async function setup(options={}){
   w.ResizeObserver=class{constructor(callback){this.callback=callback}observe(node){w.resizeCallbacks.push({node,callback:this.callback})}disconnect(){}};
  }
  let scroll=0;
+ w.HTMLElement.prototype.scrollTo=function(x,y){this.scrollTop=Math.max(0,typeof x==='object'?x.top:y);w.setTimeout(()=>this.dispatchEvent(new w.Event('scroll')),0)};
  w.firstRowGrowth=0;
  Object.defineProperty(w,'scrollY',{get:()=>scroll});
  Object.defineProperty(w.document.documentElement,'scrollHeight',{get:()=>Math.max(400+w.document.querySelectorAll('.trakt-calendar-items').length*1100,w.document.getElementById('trakt-month-calendar')?.dataset.state==='ready'?1971+w.firstRowGrowth:0)});
  w.HTMLElement.prototype.getBoundingClientRect=function(){
   if(options.controlsGap && this.classList.contains('svelte-9b8fk1'))return{left:0,right:1440,top:0,bottom:64,width:1440,height:64};
-  if(options.controlsGap && this.classList.contains('svelte-y0esg'))return{left:280,right:1400,top:128,bottom:268,width:1120,height:140};
+  if(options.controlsGap && this.classList.contains('svelte-y0esg')){const top=128+(w.location.pathname==='/discover/releases'?(options.releasesOffset||0):0);return{left:280,right:1400,top,bottom:top+140,width:1120,height:140}};
   if(this.classList.contains('trakt-side-navbar'))return{x:8,y:0,left:8,top:0,right:248,bottom:1050,width:240,height:1050};
   if(this.classList.contains('trakt-side-navbar-content'))return{x:8,y:25,left:8,top:25,right:248,bottom:1050,width:240,height:1025};
-  if(this.classList.contains('day')){const date=new w.Date(this.dataset.date+'T12:00:00'),offset=Math.round((date-new w.Date(2026,8,28,12))/86400000),row=Math.floor(offset/7),height=320+(row===0?w.firstRowGrowth:0),top=115+row*320+(row>0?w.firstRowGrowth:0)-scroll;return{x:40,y:top,left:40,top,right:220,bottom:top+height,width:180,height}}
+  if(this.classList.contains('shell')){const rows=Math.ceil(this.querySelectorAll('.day').length/7)||5,height=rows*320+w.firstRowGrowth+(parseFloat(this.style.paddingTop)||0)+(parseFloat(this.querySelector('.jump-space')?.style.height)||0)+320;return{left:40,right:1400,top:115-scroll,bottom:115-scroll+height,width:1360,height}}
+  if(this.classList.contains('day')){const date=new w.Date(this.dataset.date+'T12:00:00'),offset=Math.round((date-new w.Date(2026,8,28,12))/86400000),row=Math.floor(offset/7),height=320+(row===0?w.firstRowGrowth:0),monthScroll=w.document.getElementById('trakt-month-calendar')?.shadowRoot.querySelector('#tmc-month-viewport')?.scrollTop||0,top=115+row*320+(row>0?w.firstRowGrowth:0)-scroll-monthScroll;return{x:40,y:top,left:40,top,right:220,bottom:top+height,width:180,height}}
   const height=this.classList.contains('dayheading')?20:685;
   return{x:40,y:115-scroll,left:40,top:115-scroll,right:1400,bottom:115-scroll+height,width:1360,height}
  };
@@ -57,16 +60,162 @@ async function setup(options={}){
   existing.parentElement.append(seed);
  }
  w.eval(fs.readFileSync(path.join(root,'calendar-core.js'),'utf8'));
+ const stored={...(options.defaultPreferences?{}:{calendarWeekAuto:false,releasesWeekAuto:false}),...options.preferences},listeners=new Set();
+ w.chrome={storage:{local:{get:async()=>{if(options.preferencesDelay)await delay(options.preferencesDelay);return{...stored}},set:async values=>{const changes={};for(const [key,newValue] of Object.entries(values)){changes[key]={oldValue:stored[key],newValue};stored[key]=newValue}for(const listener of listeners)listener(changes,'local')}},onChanged:{addListener:listener=>listeners.add(listener),removeListener:listener=>listeners.delete(listener)}}};
+ w.setPreferences=values=>w.chrome.storage.local.set(values);
+ w.eval(fs.readFileSync(path.join(root,'preferences.js'),'utf8'));
  let content=fs.readFileSync(path.join(root,'content.js'),'utf8');
  w.eval(fs.readFileSync(path.join(root,'calendar-jump.js'),'utf8'));
  if(options.exposeSession)content=content.replace('  reconcile();\n})();','  reconcile();window.testMonthSession=()=>session;\n})();');
  w.eval(content);
- await until(()=>w.document.getElementById('trakt-month-calendar'),15000);
+ try{await until(()=>w.document.getElementById(options.preferences?.[(options.releases?'releases':'calendar')+'MonthAuto']===false?'trakt-month-return':'trakt-month-calendar'),15000)}
+ catch(error){const notice=w.document.getElementById('trakt-month-return')?.shadowRoot.querySelector('.notice')?.textContent;await w.happyDOM.abort();throw Error(error.message+(notice?'; '+notice:''))}
  return{w,get shadow(){return w.document.getElementById('trakt-month-calendar')?.shadowRoot},get controls(){return w.document.getElementById('trakt-month-controls')?.shadowRoot},async close(){await w.happyDOM.abort()}};
 }
 async function until(predicate,timeout=30000){const end=Date.now()+timeout;while(Date.now()<end){if(predicate())return;await delay(50)}throw Error('Timed out waiting for DOM condition')}
 const loaded=e=>e.w.document.getElementById('trakt-month-calendar')?.dataset.state==='ready';
 const button=(e,label)=>Array.from(e.controls.querySelectorAll('button')).find(b=>b.getAttribute('aria-label')===label);
+for(const releases of [false,true]){
+ const name=releases?'Releases':'Calendar',key=releases?'releases':'calendar';
+ test(name+': retained Month View can jump again after Original View',async()=>{
+  const e=await setup({releases,preloadedMonth:true});try{
+   await until(()=>loaded(e));
+   const requests=[e.w.fixture.weekRequests,e.w.fixture.scrollRequests];
+   const old=e.w.document.getElementById('trakt-month-calendar');
+   e.controls.querySelector('.view-button').click();
+   e.w.document.getElementById('trakt-month-return').shadowRoot.querySelector('button').click();
+   await until(()=>loaded(e));
+   const host=e.w.document.getElementById('trakt-month-calendar');assert.notEqual(host,old);
+   assert.deepEqual([e.w.fixture.weekRequests,e.w.fixture.scrollRequests],requests,'Reuse retained cards without more week requests');
+   e.controls.querySelector('.reset-month').click();
+   await until(()=>host.dataset.centeredWeek==='2026-10-05');
+   assert(host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop>0);
+   host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop=0;
+   e.controls.querySelector('.reset-month').click();
+   await until(()=>host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop>0);
+   assert(host.shadowRoot.querySelector('#tmc-month-viewport').scrollTop>0,'Repeated manual jumps work');
+  }finally{await e.close()}
+ });
+ test(name+': Auto jumps when the current week is loaded, including retained views',async()=>{
+  const e=await setup({releases,defaultPreferences:true});try{
+   const host=e.w.document.getElementById('trakt-month-calendar');
+   await until(()=>host.dataset.centeredWeek==='2026-10-05');
+   assert.equal(host.dataset.state,'loading','Jump before the entire month finishes');
+   await until(()=>loaded(e));
+   e.controls.querySelector('.view-button').click();
+   e.w.document.getElementById('trakt-month-return').shadowRoot.querySelector('button').click();
+   await until(()=>e.w.document.getElementById('trakt-month-calendar')?.dataset.centeredWeek==='2026-10-05');
+  }finally{await e.close()}
+ });
+ test(name+': Manual month startup and live settings stay independent',async()=>{
+  const e=await setup({releases,preferences:{[key+'MonthAuto']:false},preferencesDelay:80});try{
+   assert.equal(e.shadow,undefined,'Manual opens Original View');
+   assert.equal(e.w.fixture.weekRequests,0,'Do not load months in Manual mode');
+   e.w.document.getElementById('trakt-month-return').shadowRoot.querySelector('button').click();
+   await until(()=>loaded(e));
+   assert.equal(e.w.document.getElementById('trakt-month-calendar').dataset.centeredWeek,undefined);
+   await e.w.setPreferences({[key+'WeekAuto']:true});
+   await until(()=>e.w.document.getElementById('trakt-month-calendar').dataset.centeredWeek==='2026-10-05');
+   assert.equal(e.w.document.getElementById('trakt-month-calendar').dataset.centeredWeek,'2026-10-05');
+   await e.w.setPreferences({[key+'MonthAuto']:true});
+   await e.w.setPreferences({[key+'MonthAuto']:false});
+   assert.equal(e.shadow,undefined);
+   await e.w.setPreferences({[key+'MonthAuto']:true});
+   await until(()=>loaded(e));
+   await until(()=>e.w.document.getElementById('trakt-month-calendar').dataset.centeredWeek==='2026-10-05');
+   assert.equal(e.w.document.getElementById('trakt-month-calendar').dataset.centeredWeek,'2026-10-05');
+   const host=e.w.document.getElementById('trakt-month-calendar');
+   await e.w.setPreferences({[(releases?'calendar':'releases')+'MonthAuto']:false});
+   assert.equal(e.w.document.getElementById('trakt-month-calendar'),host,'Other section settings do not change this view');
+  }finally{await e.close()}
+ });
+}
+test('Releases grid uses the same resting top as Calendar despite a different native offset',async()=>{
+ const e=await setup({controlsGap:true,releasesOffset:-28});try{
+  const top=e.shadow.querySelector('.shell').style.paddingTop;
+  const controls=e.w.document.getElementById('trakt-month-controls').style.top;
+  await e.w.fixture.routeTo('/discover/releases');
+  await until(()=>e.shadow && e.w.document.querySelector('.tmc-native-source')?.querySelector('#periods')?.isConnected);
+  await until(()=>e.w.document.getElementById('trakt-month-calendar')?.shadowRoot.querySelector('.shell').style.paddingTop===top);
+  assert.equal(e.w.document.getElementById('trakt-month-controls').style.top,controls);
+  assert.equal(e.w.document.querySelector('.svelte-y0esg').getBoundingClientRect().top,100,'Leave native Releases geometry unchanged');
+ }finally{await e.close()}
+});
+test('automatic Releases jump waits for preceding cards and row heights to settle',async()=>{
+ const e=await setup({releases:true,defaultPreferences:true,busyEarlierPeriod:true,exposeSession:true});try{
+  await until(()=>e.w.testMonthSession().displayThrough>='2026-10-11');
+  e.w.fixture.stuck=true;
+  await delay(950);
+  const host=e.w.document.getElementById('trakt-month-calendar');
+  assert.equal(host.dataset.centeredWeek,undefined,'A busy previous period must block the jump');
+  const anchor=e.w.fixture.pendingEarlier.querySelector('#day-2026-10-1');
+  anchor.append(host.querySelector('.tmc-native-card[data-date="2026-10-01"] trakt-calendar-item').cloneNode(true));
+  e.w.firstRowGrowth=150;e.w.fixture.pendingEarlier.setAttribute('aria-busy','false');
+  await delay(350);assert.equal(host.dataset.centeredWeek,undefined,'Wait for the changed prefix to settle');
+  await until(()=>host.dataset.centeredWeek==='2026-10-05');
+  assert.equal(host.dataset.state,'loading','Later weeks do not delay the current-week jump');
+  assert.equal(host.querySelectorAll('.tmc-native-card[data-date="2026-10-01"]').length,2);
+ }finally{await e.close()}
+});
+test('filter bar and calendar share wheel scrolling and preserve zoom, menus and Original View',async()=>{
+ const e=await setup({preloadedMonth:true});try{
+  await until(()=>loaded(e));const viewport=e.shadow.querySelector('#tmc-month-viewport'),header=e.w.document.querySelector('header');
+  Object.defineProperties(viewport,{scrollHeight:{configurable:true,value:2400},clientHeight:{configurable:true,value:1050}});
+  const wheel=(target,init={})=>{const event=new e.w.WheelEvent('wheel',{bubbles:true,composed:true,cancelable:true,deltaY:180,...init});Object.defineProperty(event,'ctrlKey',{value:!!init.ctrlKey});target.dispatchEvent(event);return event};
+  assert(wheel(header).defaultPrevented);await until(()=>viewport.scrollTop===180);assert.equal(viewport.scrollTop,180);
+  assert(!wheel(header,{ctrlKey:true}).defaultPrevented);assert.equal(viewport.scrollTop,180);
+  viewport.scrollTop=0;
+  assert(wheel(viewport).defaultPrevented);await until(()=>viewport.scrollTop===180);assert.equal(viewport.scrollTop,180,'Use the same wheel distance on both surfaces');
+  viewport.scrollTop=0;
+  wheel(header,{deltaY:90});wheel(viewport,{deltaY:90});await until(()=>viewport.scrollTop===180);
+  assert.equal(viewport.scrollTop,180,'Moving between surfaces during one wheel burst must preserve its distance');
+  const menu=e.w.document.createElement('div');menu.className='trakt-drawer';header.append(menu);
+  assert(!wheel(menu).defaultPrevented);assert.equal(viewport.scrollTop,180);
+  const dropdown=e.w.document.createElement('div');dropdown.style.overflowY='auto';Object.defineProperties(dropdown,{scrollHeight:{value:300},clientHeight:{value:100}});header.append(dropdown);
+  assert(!wheel(dropdown).defaultPrevented);assert.equal(viewport.scrollTop,180);
+  const request=e.w.requestAnimationFrame,cancel=e.w.cancelAnimationFrame,frames=new Map();let next=0;
+  e.w.requestAnimationFrame=callback=>{frames.set(++next,callback);return next};e.w.cancelAnimationFrame=id=>frames.delete(id);
+  const trace=target=>{
+   viewport.scrollTop=0;wheel(target,{deltaY:240});const positions=[];
+   for(const time of [0,16,33,50,83,100,150,200,300,400,500,600]){const callbacks=Array.from(frames.values());frames.clear();for(const callback of callbacks)callback(time);positions.push(viewport.scrollTop)}
+   assert.equal(viewport.scrollTop,240);return positions;
+  };
+  assert.deepEqual(trace(header),trace(viewport),'Identical wheel input and frame timing must give identical easing on both surfaces');
+  e.w.requestAnimationFrame=request;e.w.cancelAnimationFrame=cancel;
+  e.controls.querySelector('.view-button').click();assert(!wheel(header).defaultPrevented,'Remove forwarding in Original View');
+ }finally{await e.close()}
+});
+test('wheel scrolling reaches both ends when scroll offsets are rounded to whole pixels',async()=>{
+ const e=await setup({preloadedMonth:true});try{
+  await until(()=>loaded(e));const viewport=e.shadow.querySelector('#tmc-month-viewport');
+  Object.defineProperties(viewport,{scrollHeight:{configurable:true,value:1569},clientHeight:{configurable:true,value:1050}});
+  viewport.scrollTop=0;
+  viewport.scrollTo=function({top}){this.scrollTop=Math.floor(top);e.w.setTimeout(()=>this.dispatchEvent(new e.w.Event('scroll')),0)};
+  const wheel=(target,deltaY)=>target.dispatchEvent(new e.w.WheelEvent('wheel',{bubbles:true,composed:true,cancelable:true,deltaY}));
+  wheel(e.w.document.querySelector('header'),10000);await until(()=>viewport.scrollTop===519);
+  wheel(viewport,-10000);await until(()=>viewport.scrollTop===0);
+ }finally{await e.close()}
+});
+test('mounting many cards batches geometry reads before DOM moves',async()=>{
+ const e=await setup({preloadedMonth:true,exposeSession:true});try{
+  await until(()=>loaded(e));const session=e.w.testMonthSession(),anchor=session.source.querySelector('#day-2026-10-1');
+  const original=session.host.querySelector('trakt-calendar-item');
+  for(let i=0;i<20;i++)anchor.append(original.cloneNode(true));
+  const before=session.source.querySelectorAll('.tmc-native-card-space').length,base=e.w.HTMLElement.prototype.getBoundingClientRect;let interleaved=0;
+  e.w.HTMLElement.prototype.getBoundingClientRect=function(){if(this.matches('trakt-calendar-item') && session.source.querySelectorAll('.tmc-native-card-space').length>before)interleaved++;return base.call(this)};
+  session.collectNativeCards();assert.equal(interleaved,0,'No card geometry reads after starting the DOM moves');
+  assert.equal(session.source.querySelectorAll('.tmc-native-card-space').length,before+20);
+ }finally{await e.close()}
+});
+test('a committed native month is reused immediately after its periods remount',async()=>{
+ const e=await setup({releases:true,preloadedMonth:true});try{
+  await until(()=>loaded(e));const requests=[e.w.fixture.weekRequests,e.w.fixture.scrollRequests];
+  e.controls.querySelector('.view-button').click();
+  for(const period of e.w.document.querySelectorAll('.trakt-calendar-items'))period.replaceWith(period.cloneNode(true));
+  e.w.document.getElementById('trakt-month-return').shadowRoot.querySelector('button').click();
+  assert(loaded(e));assert.deepEqual([e.w.fixture.weekRequests,e.w.fixture.scrollRequests],requests);
+ }finally{await e.close()}
+});
 test('SPA departure cleans up the overlay and cancellation prevents further loading', {timeout:10000},async()=>{
  const e=await setup();try{
   e.w.document.getElementById('away').click();
@@ -198,7 +347,7 @@ test('switching to another month resets the calendar viewport before loading', {
  }finally{await e.close()}
 });
 
- test('current week only jumps on request and cards omit years',async()=>{
+ test('manual week mode only jumps on request and cards omit years',async()=>{
  const e=await setup({preloadedMonth:true});try{
   const host=e.w.document.getElementById('trakt-month-calendar');
   await until(()=>e.shadow.querySelector('[data-date="2026-10-31"] .native-release'));
@@ -227,6 +376,7 @@ test('current week jump leaves manual scrolling in control after layout updates'
   const viewport=e.shadow.querySelector('#tmc-month-viewport');
   viewport.scrollTop=500;e.w.firstRowGrowth=150;
   e.w.testMonthSession().position();e.w.testMonthSession().render();
+  await delay(100);
   assert.equal(viewport.scrollTop,500);
   assert.equal(e.w.getComputedStyle(e.w.document.getElementById('trakt-month-calendar')).overflow,'hidden');
  }finally{await e.close()}

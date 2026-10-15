@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trakt Month Calendar settings</title>
+<link rel="stylesheet" href="popup.css">
+<script src="preferences.js" defer></script>
+<script src="popup.js" defer></script>
+<body>
+  <header><img src="icons/icon-128.png" width="28" height="28" alt=""><h1>Trakt Month Calendar</h1></header>
+  <form id="preferences">
+    <fieldset disabled>
+      <legend>Calendar</legend>
+      <div class="setting" role="group" aria-labelledby="calendar-month"><span id="calendar-month">Month View</span><div class="choices"><label><input type="radio" name="calendarMonthAuto" value="auto">Auto</label><label><input type="radio" name="calendarMonthAuto" value="manual">Manual</label></div></div>
+      <div class="setting" role="group" aria-labelledby="calendar-week"><span id="calendar-week">Jump to Current Week</span><div class="choices"><label><input type="radio" name="calendarWeekAuto" value="auto">Auto</label><label><input type="radio" name="calendarWeekAuto" value="manual">Manual</label></div></div>
+    </fieldset>
+    <fieldset disabled>
+      <legend>Releases</legend>
+      <div class="setting" role="group" aria-labelledby="releases-month"><span id="releases-month">Month View</span><div class="choices"><label><input type="radio" name="releasesMonthAuto" value="auto">Auto</label><label><input type="radio" name="releasesMonthAuto" value="manual">Manual</label></div></div>
+      <div class="setting" role="group" aria-labelledby="releases-week"><span id="releases-week">Jump to Current Week</span><div class="choices"><label><input type="radio" name="releasesWeekAuto" value="auto">Auto</label><label><input type="radio" name="releasesWeekAuto" value="manual">Manual</label></div></div>
+    </fieldset>
+  </form>
+  <p class="hint">Auto opens Month View and jumps once the current week has loaded. Manual leaves these actions to the page buttons.</p>
+  <p id="status" role="status" aria-live="polite">Loading settings…</p>
+</body>
+</html>
