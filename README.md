@@ -1,3 +1,9 @@
+# NOTICE
+
+[Trakt.tv Calendar](https://app.trakt.tv/calendar) now offers a native monthly view, making this extension redundant. As a result, this repository has been archived.
+
+For those who prefer the classic Trakt V2 layout, check out [Trakt OG Redux](https://og.trakt.tv/calendars/my/shows-movies).
+
 # Trakt Month Calendar
 
 A browser extension that adds a monthly view to Trakt Calendar and Releases, while keeping Trakt's native cards and controls.
